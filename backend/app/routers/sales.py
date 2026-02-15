@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.models.product import Product
+from app.models.product import Product, VolumePromo
 from app.models.sale import Sale, SaleItem
 from app.models.user import User
 from app.schemas.sale import SaleCreate, SaleResponse, DailySummary, TopProduct
@@ -32,17 +32,47 @@ def create_sale(
     )
 
     subtotal = 0.0
+
+    # Group items by product_id to calculate total units for volume promos
+    product_units: dict[str, float] = {}
+    for item_data in data.items:
+        key = item_data.product_id
+        product_units[key] = product_units.get(key, 0) + (item_data.quantity * item_data.pack_units)
+
     for item_data in data.items:
         product = db.query(Product).filter(Product.id == item_data.product_id).first()
         if not product:
             raise HTTPException(status_code=404, detail=f"Product {item_data.product_id} not found")
-        if product.stock < item_data.quantity:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Insufficient stock for {product.name}: {product.stock} available",
-            )
 
-        unit_price = product.price
+        stock_decrement = int(item_data.quantity * item_data.pack_units)
+
+        # Skip stock check for weight-based products
+        if not product.sell_by_weight:
+            if product.stock < stock_decrement:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient stock for {product.name}: {product.stock} available",
+                )
+
+        # Determine unit price
+        if item_data.pack_units > 1:
+            # Pack item — unit_price is the pack price (set by frontend from pack info)
+            unit_price = product.price * item_data.pack_units
+        else:
+            unit_price = product.price
+
+        # Apply volume promo for single-unit items
+        if item_data.pack_units == 1 and not product.sell_by_weight:
+            total_qty = product_units.get(item_data.product_id, 0)
+            best_promo = (
+                db.query(VolumePromo)
+                .filter(VolumePromo.product_id == product.id, VolumePromo.min_units <= total_qty)
+                .order_by(VolumePromo.min_units.desc())
+                .first()
+            )
+            if best_promo:
+                unit_price = best_promo.promo_price
+
         discount = item_data.discount_percent / 100.0
         line_total = round(unit_price * item_data.quantity * (1 - discount), 2)
 
@@ -53,12 +83,14 @@ def create_sale(
             unit_price=unit_price,
             discount_percent=item_data.discount_percent,
             line_total=line_total,
+            pack_units=item_data.pack_units,
         )
         sale.items.append(sale_item)
         subtotal += line_total
 
         # Decrement stock
-        product.stock -= item_data.quantity
+        if not product.sell_by_weight:
+            product.stock -= stock_decrement
 
     sale.subtotal = round(subtotal, 2)
     sale.tax = round(subtotal * settings.tax_rate, 2)
@@ -112,8 +144,8 @@ def void_sale(
     # Restore stock
     for item in sale.items:
         product = db.query(Product).filter(Product.id == item.product_id).first()
-        if product:
-            product.stock += item.quantity
+        if product and not product.sell_by_weight:
+            product.stock += int(item.quantity * item.pack_units)
 
     sale.status = "voided"
     db.commit()

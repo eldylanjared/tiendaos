@@ -5,13 +5,15 @@ interface Props {
   subtotal: number;
   tax: number;
   total: number;
-  onUpdateQty: (productId: string, qty: number) => void;
-  onRemove: (productId: string) => void;
+  onUpdateQty: (productId: string, packUnits: number, qty: number) => void;
+  onRemove: (productId: string, packUnits: number) => void;
   onClear: () => void;
   onPay: () => void;
 }
 
 export default function Cart({ items, subtotal, tax, total, onUpdateQty, onRemove, onClear, onPay }: Props) {
+  const isWeight = (item: CartItem) => item.product.sell_by_weight;
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -25,31 +27,53 @@ export default function Cart({ items, subtotal, tax, total, onUpdateQty, onRemov
         {items.length === 0 && (
           <p style={styles.empty}>Escanea o selecciona productos</p>
         )}
-        {items.map((item) => (
-          <div key={item.product.id} style={styles.item}>
-            <div style={styles.itemInfo}>
-              <div style={styles.itemName}>{item.product.name}</div>
-              <div style={styles.itemPrice}>${item.product.price.toFixed(2)} c/u</div>
+        {items.map((item) => {
+          const key = `${item.product.id}-${item.pack_units}`;
+          const unitPrice = item.pack_price ?? item.product.price;
+          return (
+            <div key={key} style={styles.item}>
+              <div style={styles.itemInfo}>
+                <div style={styles.itemName}>
+                  {item.product.name}
+                  {item.pack_units > 1 && (
+                    <span style={styles.packBadge}>x{item.pack_units}</span>
+                  )}
+                  {isWeight(item) && (
+                    <span style={styles.weightBadge}>kg</span>
+                  )}
+                </div>
+                <div style={styles.itemPrice}>
+                  ${unitPrice.toFixed(2)} {isWeight(item) ? "/kg" : "c/u"}
+                </div>
+              </div>
+              <div style={styles.qtyRow}>
+                {isWeight(item) ? (
+                  <span style={styles.qtyVal}>{item.quantity.toFixed(3)} kg</span>
+                ) : (
+                  <>
+                    <button
+                      style={styles.qtyBtn}
+                      onClick={() => onUpdateQty(item.product.id, item.pack_units, item.quantity - 1)}
+                    >
+                      −
+                    </button>
+                    <span style={styles.qtyVal}>{item.quantity}</span>
+                    <button
+                      style={styles.qtyBtn}
+                      onClick={() => onUpdateQty(item.product.id, item.pack_units, item.quantity + 1)}
+                    >
+                      +
+                    </button>
+                  </>
+                )}
+                <button style={styles.removeBtn} onClick={() => onRemove(item.product.id, item.pack_units)}>
+                  ✕
+                </button>
+              </div>
+              <div style={styles.lineTotal}>${item.line_total.toFixed(2)}</div>
             </div>
-            <div style={styles.qtyRow}>
-              <button
-                style={styles.qtyBtn}
-                onClick={() => onUpdateQty(item.product.id, item.quantity - 1)}
-              >
-                −
-              </button>
-              <span style={styles.qtyVal}>{item.quantity}</span>
-              <button
-                style={styles.qtyBtn}
-                onClick={() => onUpdateQty(item.product.id, item.quantity + 1)}
-              >
-                +
-              </button>
-              <button style={styles.removeBtn} onClick={() => onRemove(item.product.id)}>✕</button>
-            </div>
-            <div style={styles.lineTotal}>${item.line_total.toFixed(2)}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={styles.totals}>
@@ -108,8 +132,24 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: "1px solid #f1f5f9",
   },
   itemInfo: { display: "flex", justifyContent: "space-between", marginBottom: 4 },
-  itemName: { fontSize: 13, fontWeight: 500, color: "#1e293b", flex: 1 },
+  itemName: { fontSize: 13, fontWeight: 500, color: "#1e293b", flex: 1, display: "flex", alignItems: "center", gap: 6 },
   itemPrice: { fontSize: 12, color: "#64748b" },
+  packBadge: {
+    fontSize: 10,
+    fontWeight: 700,
+    background: "#dbeafe",
+    color: "#1e40af",
+    padding: "1px 5px",
+    borderRadius: 4,
+  },
+  weightBadge: {
+    fontSize: 10,
+    fontWeight: 700,
+    background: "#fef3c7",
+    color: "#92400e",
+    padding: "1px 5px",
+    borderRadius: 4,
+  },
   qtyRow: { display: "flex", alignItems: "center", gap: 4, marginTop: 4 },
   qtyBtn: {
     width: 28,

@@ -4,18 +4,20 @@ from pydantic import BaseModel
 
 class SaleItemCreate(BaseModel):
     product_id: str
-    quantity: int = 1
+    quantity: float = 1
     discount_percent: float = 0.0
+    pack_units: int = 1
 
 
 class SaleItemResponse(BaseModel):
     id: str
     product_id: str
     product_name: str
-    quantity: int
+    quantity: float
     unit_price: float
     discount_percent: float
     line_total: float
+    pack_units: int = 1
     model_config = {"from_attributes": True}
 
 
@@ -43,7 +45,7 @@ class SaleResponse(BaseModel):
 
 class TopProduct(BaseModel):
     product_name: str
-    quantity_sold: int
+    quantity_sold: float
     revenue: float
 
 

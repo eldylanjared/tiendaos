@@ -1,17 +1,45 @@
 import type { User } from "@/types";
 
+type View = "terminal" | "admin" | "price-checker";
+
 interface Props {
   user: User;
   storeName: string;
   onLogout: () => void;
+  view: View;
+  onViewChange: (view: View) => void;
 }
 
-export default function Header({ user, storeName, onLogout }: Props) {
+export default function Header({ user, storeName, onLogout, view, onViewChange }: Props) {
+  const isAdminOrManager = user.role === "admin" || user.role === "manager";
+
   return (
     <header style={styles.header}>
       <div style={styles.left}>
         <span style={styles.logo}>TiendaOS</span>
         <span style={styles.store}>{storeName}</span>
+        <div style={styles.nav}>
+          <button
+            style={view === "terminal" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+            onClick={() => onViewChange("terminal")}
+          >
+            Terminal
+          </button>
+          <button
+            style={view === "price-checker" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+            onClick={() => onViewChange("price-checker")}
+          >
+            Precios
+          </button>
+          {isAdminOrManager && (
+            <button
+              style={view === "admin" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+              onClick={() => onViewChange("admin")}
+            >
+              Admin
+            </button>
+          )}
+        </div>
       </div>
       <div style={styles.right}>
         <span style={styles.user}>
@@ -38,6 +66,22 @@ const styles: Record<string, React.CSSProperties> = {
   left: { display: "flex", alignItems: "center", gap: 12 },
   logo: { fontWeight: 700, fontSize: 16 },
   store: { fontSize: 13, color: "#94a3b8" },
+  nav: { display: "flex", gap: 4, marginLeft: 12 },
+  navBtn: {
+    padding: "4px 12px",
+    borderRadius: 6,
+    border: "1px solid transparent",
+    background: "transparent",
+    color: "#94a3b8",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 500,
+  },
+  navBtnActive: {
+    background: "#1e293b",
+    color: "#fff",
+    border: "1px solid #334155",
+  },
   right: { display: "flex", alignItems: "center", gap: 12 },
   user: { fontSize: 13, display: "flex", alignItems: "center", gap: 6 },
   role: {

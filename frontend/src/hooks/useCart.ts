@@ -6,40 +6,55 @@ const TAX_RATE = 0.16;
 export function useCart() {
   const [items, setItems] = useState<CartItem[]>([]);
 
-  const addProduct = useCallback((product: Product, qty = 1) => {
+  const addProduct = useCallback((product: Product, qty = 1, packUnits = 1, packPrice: number | null = null) => {
+    const key = `${product.id}-${packUnits}`;
     setItems((prev) => {
-      const idx = prev.findIndex((i) => i.product.id === product.id);
+      const idx = prev.findIndex((i) => `${i.product.id}-${i.pack_units}` === key);
       if (idx >= 0) {
         const updated = [...prev];
         const item = { ...updated[idx] };
         item.quantity += qty;
+        const unitPrice = packPrice ?? product.price;
         item.line_total =
-          Math.round(item.product.price * item.quantity * (1 - item.discount_percent / 100) * 100) / 100;
+          Math.round(unitPrice * item.quantity * (1 - item.discount_percent / 100) * 100) / 100;
         updated[idx] = item;
         return updated;
       }
-      const lineTotal = Math.round(product.price * qty * 100) / 100;
-      return [...prev, { product, quantity: qty, discount_percent: 0, line_total: lineTotal }];
+      const unitPrice = packPrice ?? product.price;
+      const lineTotal = Math.round(unitPrice * qty * 100) / 100;
+      return [...prev, {
+        product,
+        quantity: qty,
+        discount_percent: 0,
+        line_total: lineTotal,
+        pack_units: packUnits,
+        pack_price: packPrice,
+      }];
     });
   }, []);
 
-  const updateQuantity = useCallback((productId: string, quantity: number) => {
+  const cartKey = (item: CartItem) => `${item.product.id}-${item.pack_units}`;
+
+  const updateQuantity = useCallback((productId: string, packUnits: number, quantity: number) => {
+    const key = `${productId}-${packUnits}`;
     if (quantity <= 0) {
-      setItems((prev) => prev.filter((i) => i.product.id !== productId));
+      setItems((prev) => prev.filter((i) => cartKey(i) !== key));
       return;
     }
     setItems((prev) =>
       prev.map((item) => {
-        if (item.product.id !== productId) return item;
+        if (cartKey(item) !== key) return item;
+        const unitPrice = item.pack_price ?? item.product.price;
         const lineTotal =
-          Math.round(item.product.price * quantity * (1 - item.discount_percent / 100) * 100) / 100;
+          Math.round(unitPrice * quantity * (1 - item.discount_percent / 100) * 100) / 100;
         return { ...item, quantity, line_total: lineTotal };
       })
     );
   }, []);
 
-  const removeItem = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((i) => i.product.id !== productId));
+  const removeItem = useCallback((productId: string, packUnits: number) => {
+    const key = `${productId}-${packUnits}`;
+    setItems((prev) => prev.filter((i) => cartKey(i) !== key));
   }, []);
 
   const clearCart = useCallback(() => setItems([]), []);
@@ -54,6 +69,7 @@ export function useCart() {
         product_id: i.product.id,
         quantity: i.quantity,
         discount_percent: i.discount_percent,
+        pack_units: i.pack_units,
       })),
     [items]
   );

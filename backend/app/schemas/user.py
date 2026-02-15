@@ -14,6 +14,15 @@ class UserCreate(UserBase):
     pin_code: str
 
 
+class UserUpdate(BaseModel):
+    full_name: str | None = None
+    role: str | None = None
+    pin_code: str | None = None
+    password: str | None = None
+    is_active: bool | None = None
+    store_id: str | None = None
+
+
 class UserResponse(UserBase):
     id: str
     is_active: bool

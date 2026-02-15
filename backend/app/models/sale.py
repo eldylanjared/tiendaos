@@ -34,9 +34,10 @@ class SaleItem(Base):
     sale_id: Mapped[str] = mapped_column(String(36), ForeignKey("sales.id"), nullable=False)
     product_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), nullable=False)
     product_name: Mapped[str] = mapped_column(String(200), nullable=False)  # denormalized for receipts
-    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    quantity: Mapped[float] = mapped_column(Float, default=1)
     unit_price: Mapped[float] = mapped_column(Float, nullable=False)
     discount_percent: Mapped[float] = mapped_column(Float, default=0.0)
     line_total: Mapped[float] = mapped_column(Float, nullable=False)
+    pack_units: Mapped[int] = mapped_column(Integer, default=1)
 
     sale: Mapped["Sale"] = relationship("Sale", back_populates="items")

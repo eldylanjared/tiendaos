@@ -24,7 +24,8 @@ for cat in \
   '{"name":"Panadería","color":"#A855F7"}' \
   '{"name":"Lácteos","color":"#3B82F6"}' \
   '{"name":"Limpieza","color":"#10B981"}' \
-  '{"name":"Dulces","color":"#EC4899"}'; do
+  '{"name":"Dulces","color":"#EC4899"}' \
+  '{"name":"Frutas y Verduras","color":"#84CC16"}'; do
   curl -sf -X POST "$API/products/categories" \
     -H "$AUTH" -H "Content-Type: application/json" \
     -d "$cat" > /dev/null 2>&1 && echo "  + $(echo "$cat" | python3 -c "import sys,json; print(json.load(sys.stdin)['name'])")" || true
@@ -67,6 +68,11 @@ PRODUCTS=(
   # Dulces
   '{"barcode":"7501008042069","name":"Mazapán De la Rosa","price":5.00,"cost":2.50,"stock":100,"min_stock":20}'
   '{"barcode":"7501000109142","name":"Chicles Trident Menta","price":16.00,"cost":10.00,"stock":40,"min_stock":10}'
+
+  # Weight-based products (Frutas y Verduras)
+  '{"barcode":"2001000000000","name":"Plátano","price":24.90,"cost":15.00,"stock":0,"min_stock":0,"sell_by_weight":true}'
+  '{"barcode":"2002000000000","name":"Manzana Roja","price":45.90,"cost":30.00,"stock":0,"min_stock":0,"sell_by_weight":true}'
+  '{"barcode":"2003000000000","name":"Limón","price":32.00,"cost":18.00,"stock":0,"min_stock":0,"sell_by_weight":true}'
 )
 
 COUNT=0
@@ -79,6 +85,50 @@ for prod in "${PRODUCTS[@]}"; do
     echo "  ~ $NAME (already exists)"
   fi
 done
+
+# Add pack barcodes (multi-pack UPCs)
+echo "Adding pack barcodes..."
+
+# Get Coca-Cola 600ml product ID
+COKE_ID=$(curl -sf "$API/products/barcode/7501055303182" -H "$AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['product']['id'])")
+if [ -n "$COKE_ID" ]; then
+  # 12-pack barcode
+  curl -sf -X POST "$API/products/$COKE_ID/barcodes" -H "$AUTH" -H "Content-Type: application/json" \
+    -d '{"barcode":"7501055303182-12","units":12,"pack_price":198.00}' > /dev/null 2>&1 && echo "  + Coca-Cola 12-pack barcode" || echo "  ~ Coca-Cola 12-pack (exists)"
+  # 24-pack barcode
+  curl -sf -X POST "$API/products/$COKE_ID/barcodes" -H "$AUTH" -H "Content-Type: application/json" \
+    -d '{"barcode":"7501055303182-24","units":24,"pack_price":360.00}' > /dev/null 2>&1 && echo "  + Coca-Cola 24-pack barcode" || echo "  ~ Coca-Cola 24-pack (exists)"
+fi
+
+# Get Agua Ciel product ID and add 12-pack
+AGUA_ID=$(curl -sf "$API/products/barcode/7501031311309" -H "$AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['product']['id'])")
+if [ -n "$AGUA_ID" ]; then
+  curl -sf -X POST "$API/products/$AGUA_ID/barcodes" -H "$AUTH" -H "Content-Type: application/json" \
+    -d '{"barcode":"7501031311309-12","units":12,"pack_price":120.00}' > /dev/null 2>&1 && echo "  + Agua Ciel 12-pack barcode" || echo "  ~ Agua Ciel 12-pack (exists)"
+fi
+
+# Get Maruchan product ID and add 12-pack
+MARUCHAN_ID=$(curl -sf "$API/products/barcode/7506306414044" -H "$AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['product']['id'])")
+if [ -n "$MARUCHAN_ID" ]; then
+  curl -sf -X POST "$API/products/$MARUCHAN_ID/barcodes" -H "$AUTH" -H "Content-Type: application/json" \
+    -d '{"barcode":"7506306414044-12","units":12,"pack_price":96.00}' > /dev/null 2>&1 && echo "  + Maruchan 12-pack barcode" || echo "  ~ Maruchan 12-pack (exists)"
+fi
+
+# Add volume promos
+echo "Adding volume promos..."
+
+# Mazapán: buy 8+ at $4.00 each (regular $5.00)
+MAZAPAN_ID=$(curl -sf "$API/products/barcode/7501008042069" -H "$AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['product']['id'])")
+if [ -n "$MAZAPAN_ID" ]; then
+  curl -sf -X POST "$API/products/$MAZAPAN_ID/promos" -H "$AUTH" -H "Content-Type: application/json" \
+    -d '{"min_units":8,"promo_price":4.00}' > /dev/null 2>&1 && echo "  + Mazapán 8+ @ \$4.00" || echo "  ~ Mazapán promo (exists)"
+fi
+
+# Coca-Cola 600ml: buy 6+ at $16.50 each (regular $18.50)
+if [ -n "$COKE_ID" ]; then
+  curl -sf -X POST "$API/products/$COKE_ID/promos" -H "$AUTH" -H "Content-Type: application/json" \
+    -d '{"min_units":6,"promo_price":16.50}' > /dev/null 2>&1 && echo "  + Coca-Cola 6+ @ \$16.50" || echo "  ~ Coca-Cola promo (exists)"
+fi
 
 # Create a couple of test employees
 echo "Creating test employees..."
@@ -100,3 +150,8 @@ echo "Test accounts:"
 echo "  admin   / admin123   / PIN: 0000  (admin)"
 echo "  carlos  / carlos123  / PIN: 5678  (manager)"
 echo "  maria   / maria123   / PIN: 1234  (cashier)"
+echo ""
+echo "Sample data:"
+echo "  Pack barcodes: Coca-Cola 12pk, 24pk; Agua Ciel 12pk; Maruchan 12pk"
+echo "  Volume promos: Mazapán 8+ @ \$4.00; Coca-Cola 6+ @ \$16.50"
+echo "  Weight products: Plátano, Manzana Roja, Limón (price per kg)"

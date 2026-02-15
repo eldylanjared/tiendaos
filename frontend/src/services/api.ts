@@ -5,6 +5,10 @@ import type {
   Sale,
   DailySummary,
   SaleItemCreate,
+  BarcodeLookupResult,
+  User,
+  StockAdjustment,
+  PriceCheckResult,
 } from "@/types";
 
 const BASE = "/api";
@@ -59,11 +63,62 @@ export function searchProducts(search: string = "", limit = 50) {
 }
 
 export function getByBarcode(barcode: string) {
-  return request<Product>(`/products/barcode/${barcode}`);
+  return request<BarcodeLookupResult>(`/products/barcode/${barcode}`);
+}
+
+export function getProduct(productId: string) {
+  return request<Product>(`/products/${productId}`);
 }
 
 export function getCategories() {
   return request<Category[]>("/products/categories");
+}
+
+export function createProduct(data: Partial<Product> & { barcode: string; name: string; price: number }) {
+  return request<Product>("/products", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateProduct(productId: string, data: Record<string, unknown>) {
+  return request<Product>(`/products/${productId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function adjustStock(productId: string, quantity: number, reason: string, notes = "") {
+  return request<StockAdjustment>(`/products/${productId}/adjust-stock`, {
+    method: "POST",
+    body: JSON.stringify({ quantity, reason, notes }),
+  });
+}
+
+export function getStockHistory(productId: string) {
+  return request<StockAdjustment[]>(`/products/${productId}/stock-history`);
+}
+
+export function addProductBarcode(productId: string, barcode: string, units: number, pack_price: number) {
+  return request(`/products/${productId}/barcodes`, {
+    method: "POST",
+    body: JSON.stringify({ barcode, units, pack_price }),
+  });
+}
+
+export function deleteProductBarcode(productId: string, barcodeId: string) {
+  return request(`/products/${productId}/barcodes/${barcodeId}`, { method: "DELETE" });
+}
+
+export function addVolumePromo(productId: string, min_units: number, promo_price: number) {
+  return request(`/products/${productId}/promos`, {
+    method: "POST",
+    body: JSON.stringify({ min_units, promo_price }),
+  });
+}
+
+export function deleteVolumePromo(productId: string, promoId: string) {
+  return request(`/products/${productId}/promos/${promoId}`, { method: "DELETE" });
 }
 
 // Sales
@@ -83,8 +138,37 @@ export function getDailySummary(date?: string) {
   return request<DailySummary>(`/sales/reports/daily${params}`);
 }
 
-export function getSales(date?: string, limit = 50) {
+export function getSales(date?: string, status?: string, limit = 50) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (date) params.set("date", date);
+  if (status) params.set("status", status);
   return request<Sale[]>(`/sales?${params}`);
+}
+
+export function voidSale(saleId: string) {
+  return request<Sale>(`/sales/${saleId}/void`, { method: "POST" });
+}
+
+// Admin — Users
+export function getUsers() {
+  return request<User[]>("/admin/users");
+}
+
+export function createUser(data: { username: string; full_name: string; password: string; pin_code: string; role: string; store_id: string }) {
+  return request<User>("/admin/users", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateUser(userId: string, data: Record<string, unknown>) {
+  return request<User>(`/admin/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+// Price Checker (public, no auth)
+export function priceCheck(barcode: string) {
+  return request<PriceCheckResult>(`/price-check/${barcode}`);
 }

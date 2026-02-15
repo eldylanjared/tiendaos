@@ -5,6 +5,21 @@ export interface Category {
   parent_id: string | null;
 }
 
+export interface ProductBarcode {
+  id: string;
+  product_id: string;
+  barcode: string;
+  units: number;
+  pack_price: number;
+}
+
+export interface VolumePromo {
+  id: string;
+  product_id: string;
+  min_units: number;
+  promo_price: number;
+}
+
 export interface Product {
   id: string;
   barcode: string;
@@ -17,9 +32,24 @@ export interface Product {
   min_stock: number;
   image_url: string;
   is_active: boolean;
+  sell_by_weight: boolean;
   created_at: string;
   updated_at: string;
   category: Category | null;
+  barcodes: ProductBarcode[];
+  volume_promos: VolumePromo[];
+}
+
+export interface PackInfo {
+  barcode_id: string;
+  barcode: string;
+  units: number;
+  pack_price: number;
+}
+
+export interface BarcodeLookupResult {
+  product: Product;
+  pack: PackInfo | null;
 }
 
 export interface CartItem {
@@ -27,12 +57,15 @@ export interface CartItem {
   quantity: number;
   discount_percent: number;
   line_total: number;
+  pack_units: number;
+  pack_price: number | null;
 }
 
 export interface SaleItemCreate {
   product_id: string;
   quantity: number;
   discount_percent: number;
+  pack_units: number;
 }
 
 export interface SaleItem {
@@ -43,6 +76,7 @@ export interface SaleItem {
   unit_price: number;
   discount_percent: number;
   line_total: number;
+  pack_units: number;
 }
 
 export interface Sale {
@@ -88,4 +122,23 @@ export interface DailySummary {
   transaction_count: number;
   avg_ticket: number;
   top_products: TopProduct[];
+}
+
+export interface StockAdjustment {
+  id: string;
+  product_id: string;
+  user_id: string;
+  quantity: number;
+  reason: string;
+  notes: string;
+  created_at: string;
+}
+
+export interface PriceCheckResult {
+  name: string;
+  price: number;
+  unit_price: number;
+  image_url: string;
+  sell_by_weight: boolean;
+  pack: { barcode: string; units: number; pack_price: number } | null;
 }
