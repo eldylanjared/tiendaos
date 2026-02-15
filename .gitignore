@@ -26,5 +26,8 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Data
+*.csv
+
 # Docker
 *.log
