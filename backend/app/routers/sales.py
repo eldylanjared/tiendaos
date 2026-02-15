@@ -46,14 +46,6 @@ def create_sale(
 
         stock_decrement = int(item_data.quantity * item_data.pack_units)
 
-        # Skip stock check for weight-based products
-        if not product.sell_by_weight:
-            if product.stock < stock_decrement:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Insufficient stock for {product.name}: {product.stock} available",
-                )
-
         # Determine unit price
         if item_data.pack_units > 1:
             # Pack item — unit_price is the pack price (set by frontend from pack info)

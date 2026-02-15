@@ -52,10 +52,6 @@ export default function Terminal({ storeName }: Props) {
       setWeightProduct(product);
       return;
     }
-    if (product.stock <= 0) {
-      toast.error("Sin inventario");
-      return;
-    }
     cart.addProduct(product);
   }
 
