@@ -1,4 +1,10 @@
-"""Import products from 'Producto (product.template).csv' (Odoo export) into TiendaOS."""
+"""Import products from 'Producto (product.template).csv' (Odoo export) into TiendaOS.
+
+Handles:
+- Adding new products
+- Updating prices/costs for existing products
+- Fixing generated barcodes (GEN-*) when CSV has a real barcode
+"""
 import csv
 import hashlib
 import sys
@@ -24,6 +30,7 @@ def main():
     updated = 0
     skipped = 0
     errors = 0
+    barcodes_fixed = 0
     seen_barcodes = set()
 
     with open(CSV_PATH, encoding="utf-8") as f:
@@ -49,32 +56,47 @@ def main():
                 errors += 1
                 continue
 
-            # Use barcode if provided, otherwise generate from name
-            if not barcode:
-                barcode = "GEN-" + hashlib.md5(name.encode()).hexdigest()[:12].upper()
+            # Determine the real barcode from CSV, or generate one
+            real_barcode = barcode if barcode else None
+            db_barcode = barcode if barcode else "GEN-" + hashlib.md5(name.encode()).hexdigest()[:12].upper()
 
             # Skip duplicates within CSV
-            if barcode in seen_barcodes:
+            if db_barcode in seen_barcodes:
                 skipped += 1
                 continue
-            seen_barcodes.add(barcode)
+            seen_barcodes.add(db_barcode)
 
-            # Check if product exists by barcode or name — update prices if so
-            existing = db.query(Product).filter(Product.barcode == barcode).first()
+            # Look up existing product: by real barcode, by generated barcode, or by name
+            existing = db.query(Product).filter(Product.barcode == db_barcode).first()
+            if not existing and real_barcode:
+                gen_barcode = "GEN-" + hashlib.md5(name.encode()).hexdigest()[:12].upper()
+                existing = db.query(Product).filter(Product.barcode == gen_barcode).first()
             if not existing:
                 existing = db.query(Product).filter(Product.name == name).first()
 
             if existing:
+                changed = False
+
+                # Fix generated barcode if we now have a real one
+                if real_barcode and existing.barcode.startswith("GEN-"):
+                    existing.barcode = real_barcode
+                    barcodes_fixed += 1
+                    changed = True
+
+                # Update price/cost if different
                 if existing.price != price or existing.cost != cost:
                     existing.price = price
                     existing.cost = cost
+                    changed = True
+
+                if changed:
                     updated += 1
                 else:
                     skipped += 1
                 continue
 
             product = Product(
-                barcode=barcode,
+                barcode=db_barcode,
                 name=name,
                 price=price,
                 cost=cost,
@@ -93,10 +115,11 @@ def main():
     db.close()
 
     print(f"\nImport complete:")
-    print(f"  Added:   {added}")
-    print(f"  Updated: {updated} (price/cost changed)")
-    print(f"  Skipped: {skipped} (no changes needed)")
-    print(f"  Errors:  {errors} (bad/empty rows)")
+    print(f"  Added:    {added}")
+    print(f"  Updated:  {updated} (price/cost/barcode changed)")
+    print(f"  Barcodes: {barcodes_fixed} fixed (GEN-* replaced with real barcode)")
+    print(f"  Skipped:  {skipped} (no changes needed)")
+    print(f"  Errors:   {errors} (bad/empty rows)")
 
 
 if __name__ == "__main__":
