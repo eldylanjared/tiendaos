@@ -11,6 +11,10 @@ from app.models.product import Product
 
 CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "Producto (product.template).csv")
 
+# Also check Downloads folder if local copy not found
+if not os.path.exists(CSV_PATH):
+    CSV_PATH = os.path.expanduser("~/Downloads/Producto (product.template).csv")
+
 
 def main():
     init_db()
@@ -27,7 +31,7 @@ def main():
             name = row.get("Nombre", "").strip()
             price_str = row.get("Precio de venta", "0").strip()
             cost_str = row.get("Costo", "0").strip()
-            barcode = row.get("Referencia interna", "").strip()
+            barcode = row.get("Código de barras", "").strip()
 
             if not name:
                 errors += 1
