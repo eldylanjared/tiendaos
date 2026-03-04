@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import type { Product, CartItem, SaleItemCreate } from "@/types";
 
-const TAX_RATE = 0.16;
+const TAX_RATE = 0;
 
 export function useCart() {
   const [items, setItems] = useState<CartItem[]>([]);

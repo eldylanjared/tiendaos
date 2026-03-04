@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     # Business
     currency: str = "MXN"
     currency_symbol: str = "$"
-    tax_rate: float = 0.16
+    tax_rate: float = 0.0
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

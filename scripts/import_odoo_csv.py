@@ -21,6 +21,7 @@ def main():
     db = SessionLocal()
 
     added = 0
+    updated = 0
     skipped = 0
     errors = 0
     seen_barcodes = set()
@@ -52,21 +53,24 @@ def main():
             if not barcode:
                 barcode = "GEN-" + hashlib.md5(name.encode()).hexdigest()[:12].upper()
 
-            # Skip duplicates
+            # Skip duplicates within CSV
             if barcode in seen_barcodes:
                 skipped += 1
                 continue
             seen_barcodes.add(barcode)
 
+            # Check if product exists by barcode or name — update prices if so
             existing = db.query(Product).filter(Product.barcode == barcode).first()
-            if existing:
-                skipped += 1
-                continue
+            if not existing:
+                existing = db.query(Product).filter(Product.name == name).first()
 
-            # Check if product with same name already exists
-            existing_name = db.query(Product).filter(Product.name == name).first()
-            if existing_name:
-                skipped += 1
+            if existing:
+                if existing.price != price or existing.cost != cost:
+                    existing.price = price
+                    existing.cost = cost
+                    updated += 1
+                else:
+                    skipped += 1
                 continue
 
             product = Product(
@@ -90,7 +94,8 @@ def main():
 
     print(f"\nImport complete:")
     print(f"  Added:   {added}")
-    print(f"  Skipped: {skipped} (duplicate or already exists)")
+    print(f"  Updated: {updated} (price/cost changed)")
+    print(f"  Skipped: {skipped} (no changes needed)")
     print(f"  Errors:  {errors} (bad/empty rows)")
 
 
