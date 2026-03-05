@@ -101,34 +101,38 @@ export default function PriceChecker({ storeName }: Props) {
 
         {product && (
           <div style={styles.productCard}>
-            {product.image_url ? (
-              <img src={product.image_url} alt={product.name} style={styles.productImage} />
-            ) : (
-              <div style={styles.imagePlaceholder}>
-                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <path d="M21 15l-5-5L5 21" />
-                </svg>
-              </div>
-            )}
-            <h1 style={styles.productName}>{product.name}</h1>
-            {product.pack && (
-              <p style={styles.packLabel}>Pack x{product.pack.units}</p>
-            )}
-            <div style={styles.priceBox}>
-              <span style={styles.currency}>$</span>
-              <span style={styles.priceMain}>{Math.floor(product.price)}</span>
-              <span style={styles.priceCents}>
-                .{((product.price % 1) * 100).toFixed(0).padStart(2, "0")}
-              </span>
-              {product.sell_by_weight && <span style={styles.perKg}>/kg</span>}
+            <div style={styles.cardLeft}>
+              {product.image_url ? (
+                <img src={product.image_url} alt={product.name} style={styles.productImage} />
+              ) : (
+                <div style={styles.imagePlaceholder}>
+                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                </div>
+              )}
             </div>
-            {product.pack && (
-              <p style={styles.unitPriceNote}>
-                Precio unitario: ${product.unit_price.toFixed(2)}
-              </p>
-            )}
+            <div style={styles.cardRight}>
+              <h1 style={styles.productName}>{product.name}</h1>
+              {product.pack && (
+                <p style={styles.packLabel}>Pack x{product.pack.units}</p>
+              )}
+              <div style={styles.priceBox}>
+                <span style={styles.currency}>$</span>
+                <span style={styles.priceMain}>{Math.floor(product.price)}</span>
+                <span style={styles.priceCents}>
+                  .{((product.price % 1) * 100).toFixed(0).padStart(2, "0")}
+                </span>
+                {product.sell_by_weight && <span style={styles.perKg}>/kg</span>}
+              </div>
+              {product.pack && (
+                <p style={styles.unitPriceNote}>
+                  Precio unitario: ${product.unit_price.toFixed(2)}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -168,19 +172,28 @@ const styles: Record<string, React.CSSProperties> = {
   errorBox: { textAlign: "center" },
   errorText: { fontSize: 20, color: "#dc2626" },
   productCard: {
-    textAlign: "center",
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
     background: "#fff",
     borderRadius: 20,
-    padding: "40px 60px",
+    padding: 40,
     boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-    maxWidth: 500,
+    maxWidth: 700,
     width: "100%",
+    gap: 40,
+  },
+  cardLeft: {
+    flexShrink: 0,
+  },
+  cardRight: {
+    flex: 1,
+    textAlign: "left",
   },
   productImage: {
     width: 200,
     height: 200,
     objectFit: "contain",
-    marginBottom: 16,
     borderRadius: 12,
   },
   imagePlaceholder: {
@@ -191,7 +204,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     background: "#f1f5f9",
     borderRadius: 12,
-    margin: "0 auto 16px",
   },
   productName: {
     fontSize: 28,
@@ -212,7 +224,6 @@ const styles: Record<string, React.CSSProperties> = {
   priceBox: {
     display: "flex",
     alignItems: "baseline",
-    justifyContent: "center",
     gap: 2,
     marginTop: 8,
   },
