@@ -57,15 +57,28 @@ export default function ProductGrid({ onSelect }: Props) {
           const cat = categories.find((c) => c.id === p.category_id);
           return (
             <button key={p.id} style={styles.card} onClick={() => onSelect(p)}>
-              <div style={{ ...styles.catBadge, background: cat?.color || "#94a3b8" }}>
-                {cat?.name || "General"}
-              </div>
-              <div style={styles.productName}>{p.name}</div>
-              <div style={styles.priceRow}>
-                <span style={styles.price}>${p.price.toFixed(2)}</span>
-                <span style={{ ...styles.stock, color: p.stock <= p.min_stock ? "#dc2626" : "#16a34a" }}>
-                  {p.stock} uds
-                </span>
+              <div style={styles.cardInner}>
+                <div style={styles.imgWrap}>
+                  {p.image_url ? (
+                    <img src={p.image_url} alt={p.name} style={styles.img} />
+                  ) : (
+                    <div style={styles.imgPlaceholder}>
+                      {p.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div style={styles.cardInfo}>
+                  <div style={{ ...styles.catBadge, background: cat?.color || "#94a3b8" }}>
+                    {cat?.name || "General"}
+                  </div>
+                  <div style={styles.productName}>{p.name}</div>
+                  <div style={styles.priceRow}>
+                    <span style={styles.price}>${p.price.toFixed(2)}</span>
+                    <span style={{ ...styles.stock, color: p.stock <= p.min_stock ? "#dc2626" : "#16a34a" }}>
+                      {p.stock} uds
+                    </span>
+                  </div>
+                </div>
               </div>
             </button>
           );
@@ -108,16 +121,46 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
   },
   card: {
-    display: "flex",
-    flexDirection: "column",
-    padding: 10,
+    padding: 0,
     borderRadius: 10,
     border: "1px solid #e2e8f0",
     background: "#fff",
     cursor: "pointer",
     textAlign: "left",
     transition: "all 0.1s",
+    overflow: "hidden",
+  },
+  cardInner: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "stretch",
     minHeight: 80,
+  },
+  imgWrap: {
+    width: 70,
+    minHeight: 70,
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#f1f5f9",
+  },
+  img: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  imgPlaceholder: {
+    fontSize: 22,
+    fontWeight: 700,
+    color: "#94a3b8",
+  },
+  cardInfo: {
+    display: "flex",
+    flexDirection: "column" as const,
+    padding: "8px 10px",
+    flex: 1,
+    minWidth: 0,
   },
   catBadge: {
     fontSize: 10,
@@ -126,10 +169,10 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "2px 6px",
     borderRadius: 4,
     alignSelf: "flex-start",
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  productName: { fontSize: 13, fontWeight: 500, color: "#1e293b", flex: 1, lineHeight: 1.3 },
-  priceRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 },
+  productName: { fontSize: 12, fontWeight: 500, color: "#1e293b", flex: 1, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis" as const },
+  priceRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
   price: { fontSize: 15, fontWeight: 700, color: "#0f172a" },
   stock: { fontSize: 11, fontWeight: 500 },
   msg: { gridColumn: "1 / -1", textAlign: "center", color: "#94a3b8", padding: 40 },
