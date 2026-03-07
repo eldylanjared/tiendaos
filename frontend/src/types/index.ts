@@ -142,3 +142,98 @@ export interface PriceCheckResult {
   sell_by_weight: boolean;
   pack: { barcode: string; units: number; pack_price: number } | null;
 }
+
+// Reports
+export interface DashboardData {
+  date: string;
+  total_sales: number;
+  transaction_count: number;
+  avg_ticket: number;
+  total_profit: number;
+  yesterday_total: number;
+  sales_by_hour: { hour: number; sales: number; transactions: number }[];
+  top_products: TopProduct[];
+  payment_breakdown: { cash: number; card: number; mixed: number };
+}
+
+export interface SalesPeriod {
+  period: string;
+  total_sales: number;
+  transactions: number;
+  avg_ticket: number;
+}
+
+export interface ProductProfit {
+  product_id: string;
+  product_name: string;
+  units_sold: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+  margin_pct: number;
+}
+
+export interface CategoryPerf {
+  category: string;
+  units_sold: number;
+  revenue: number;
+  products_count: number;
+}
+
+export interface CashierPerf {
+  user_id: string;
+  full_name: string;
+  total_sales: number;
+  transactions: number;
+  avg_ticket: number;
+  voided: number;
+  items_sold: number;
+}
+
+export interface InventoryReport {
+  total_products: number;
+  total_stock_value: number;
+  total_retail_value: number;
+  potential_profit: number;
+  out_of_stock_count: number;
+  below_minimum_count: number;
+  out_of_stock: InventoryItem[];
+  below_minimum: InventoryItem[];
+}
+
+export interface InventoryItem {
+  product_id: string;
+  name: string;
+  barcode: string;
+  stock: number;
+  min_stock: number;
+  cost: number;
+  price: number;
+  reorder_qty: number;
+}
+
+// Finance
+export interface FinanceEntry {
+  id: string;
+  entry_type: "income" | "expense";
+  category: string;
+  amount: number;
+  description: string;
+  image_path: string;
+  date: string;
+  created_at: string;
+}
+
+export interface FinanceSummary {
+  total_income: number;
+  total_expenses: number;
+  balance: number;
+  entry_count: number;
+  expense_categories: { category: string; amount: number }[];
+  income_categories: { category: string; amount: number }[];
+}
+
+export interface FinanceCategories {
+  expense: string[];
+  income: string[];
+}

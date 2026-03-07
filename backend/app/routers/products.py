@@ -1,4 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import csv
+import io
+import os
+import uuid as _uuid
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -22,6 +27,168 @@ from app.schemas.product import (
 from app.services.auth import get_current_user, require_role
 
 router = APIRouter(prefix="/api/products", tags=["products"])
+
+PRODUCT_IMG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "product_images")
+os.makedirs(PRODUCT_IMG_DIR, exist_ok=True)
+
+
+# --- Export / Import ---
+
+@router.get("/export-csv")
+def export_products_csv(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    """Export all products as CSV."""
+    products = db.query(Product).order_by(Product.name).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "barcode", "name", "description", "category", "price", "cost",
+        "stock", "min_stock", "sell_by_weight", "is_active",
+    ])
+    for p in products:
+        cat_name = ""
+        if p.category_id:
+            cat = db.query(Category).filter(Category.id == p.category_id).first()
+            if cat:
+                cat_name = cat.name
+        writer.writerow([
+            p.barcode, p.name, p.description or "", cat_name,
+            p.price, p.cost, p.stock, p.min_stock,
+            "1" if p.sell_by_weight else "0",
+            "1" if p.is_active else "0",
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=productos.csv"},
+    )
+
+
+@router.post("/import-csv")
+async def import_products_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    """Import products from CSV. Updates existing products by barcode, creates new ones."""
+    content = await file.read()
+    text = content.decode("utf-8-sig")  # handle BOM from Excel
+    reader = csv.DictReader(io.StringIO(text))
+
+    created = 0
+    updated = 0
+    errors = []
+
+    # Cache categories by name
+    cat_cache: dict[str, str] = {}
+    for cat in db.query(Category).all():
+        cat_cache[cat.name.lower().strip()] = cat.id
+
+    for i, row in enumerate(reader, start=2):
+        barcode = (row.get("barcode") or row.get("Código de barras") or "").strip()
+        name = (row.get("name") or row.get("Nombre") or "").strip()
+        if not barcode or not name:
+            errors.append(f"Row {i}: missing barcode or name")
+            continue
+
+        try:
+            price = float(row.get("price") or row.get("Precio de venta") or 0)
+        except ValueError:
+            price = 0
+        try:
+            cost = float(row.get("cost") or row.get("Coste") or 0)
+        except ValueError:
+            cost = 0
+        try:
+            stock = int(float(row.get("stock") or row.get("Cantidad a mano") or 0))
+        except ValueError:
+            stock = 0
+        try:
+            min_stock = int(float(row.get("min_stock") or 5))
+        except ValueError:
+            min_stock = 5
+
+        cat_name = (row.get("category") or row.get("Categoría del punto de venta") or "").strip()
+        cat_id = None
+        if cat_name:
+            cat_id = cat_cache.get(cat_name.lower().strip())
+
+        sell_by_weight = (row.get("sell_by_weight") or "0").strip() in ("1", "true", "True")
+
+        existing = db.query(Product).filter(Product.barcode == barcode).first()
+        if existing:
+            existing.name = name
+            existing.price = price
+            existing.cost = cost
+            if cat_id:
+                existing.category_id = cat_id
+            if stock > 0 and existing.stock == 0:
+                existing.stock = stock
+            updated += 1
+        else:
+            product = Product(
+                barcode=barcode,
+                name=name,
+                price=price,
+                cost=cost,
+                stock=stock,
+                min_stock=min_stock,
+                category_id=cat_id,
+                sell_by_weight=sell_by_weight,
+            )
+            db.add(product)
+            created += 1
+
+    db.commit()
+    return {"created": created, "updated": updated, "errors": errors[:20]}
+
+
+# --- Product Images ---
+
+@router.post("/{product_id}/image")
+async def upload_product_image(
+    product_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        raise HTTPException(status_code=400, detail="Image must be jpg, png, or webp")
+
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 5MB)")
+
+    # Delete old image if exists
+    if product.image_url and product.image_url.startswith("/api/products/image/"):
+        old_name = product.image_url.split("/")[-1]
+        old_path = os.path.join(PRODUCT_IMG_DIR, old_name)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    filename = f"{_uuid.uuid4().hex}{ext}"
+    with open(os.path.join(PRODUCT_IMG_DIR, filename), "wb") as f:
+        f.write(content)
+
+    product.image_url = f"/api/products/image/{filename}"
+    db.commit()
+    return {"image_url": product.image_url}
+
+
+@router.get("/image/{filename}")
+def get_product_image(filename: str):
+    filepath = os.path.join(PRODUCT_IMG_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(filepath)
 
 
 # --- Categories ---

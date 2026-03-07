@@ -66,6 +66,47 @@ async def ollama_available() -> bool:
         return False
 
 
+async def query_vision(image_base64: str, media_type: str, prompt: str, system: str = "") -> str:
+    """Send an image + prompt to Claude Vision API."""
+    if not settings.anthropic_api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY not configured")
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_base64,
+                    },
+                },
+                {"type": "text", "text": prompt},
+            ],
+        }
+    ]
+    body = {
+        "model": settings.claude_model,
+        "max_tokens": 1024,
+        "messages": messages,
+    }
+    if system:
+        body["system"] = system
+
+    headers = {
+        "x-api-key": settings.anthropic_api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=CLAUDE_TIMEOUT) as client:
+        resp = await client.post("https://api.anthropic.com/v1/messages", json=body, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["content"][0]["text"]
+
+
 async def query(prompt: str, system: str = "", force_cloud: bool = False) -> str:
     """
     Main entry point. Routes to local Ollama by default.

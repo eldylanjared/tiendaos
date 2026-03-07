@@ -1,12 +1,16 @@
 import { useState } from "react";
+import Dashboard from "@/components/Admin/Dashboard";
+import Reports from "@/components/Admin/Reports";
 import ProductManager from "@/components/Admin/ProductManager";
 import SalesHistory from "@/components/Admin/SalesHistory";
 import EmployeeManager from "@/components/Admin/EmployeeManager";
 import InventoryManager from "@/components/Admin/InventoryManager";
 
-type Tab = "products" | "sales" | "employees" | "inventory";
+type Tab = "dashboard" | "reports" | "products" | "sales" | "employees" | "inventory";
 
 const tabs: { key: Tab; label: string }[] = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "reports", label: "Reportes" },
   { key: "products", label: "Productos" },
   { key: "sales", label: "Ventas" },
   { key: "employees", label: "Empleados" },
@@ -14,7 +18,7 @@ const tabs: { key: Tab; label: string }[] = [
 ];
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<Tab>("products");
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
 
   return (
     <div style={styles.container}>
@@ -30,6 +34,8 @@ export default function AdminPanel() {
         ))}
       </div>
       <div style={styles.content}>
+        {activeTab === "dashboard" && <Dashboard />}
+        {activeTab === "reports" && <Reports />}
         {activeTab === "products" && <ProductManager />}
         {activeTab === "sales" && <SalesHistory />}
         {activeTab === "employees" && <EmployeeManager />}

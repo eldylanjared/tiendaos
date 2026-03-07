@@ -9,6 +9,15 @@ import type {
   User,
   StockAdjustment,
   PriceCheckResult,
+  DashboardData,
+  SalesPeriod,
+  ProductProfit,
+  CategoryPerf,
+  CashierPerf,
+  InventoryReport,
+  FinanceEntry,
+  FinanceSummary,
+  FinanceCategories,
 } from "@/types";
 
 const BASE = "/api";
@@ -17,9 +26,17 @@ function getToken(): string | null {
   return localStorage.getItem("token");
 }
 
+// Listeners for auth expiry — App.tsx hooks into this
+type AuthExpiredCallback = () => void;
+let onAuthExpired: AuthExpiredCallback | null = null;
+export function setAuthExpiredHandler(cb: AuthExpiredCallback) {
+  onAuthExpired = cb;
+}
+
 async function request<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  _retry = true,
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -28,12 +45,60 @@ async function request<T>(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { ...options, headers });
+  } catch (e) {
+    // Network error — retry once after 2s
+    if (_retry) {
+      await new Promise((r) => setTimeout(r, 2000));
+      return request<T>(path, options, false);
+    }
+    throw new Error("Sin conexión al servidor");
+  }
+
+  if (res.status === 401 && _retry && path !== "/auth/refresh") {
+    // Try refreshing the token
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      return request<T>(path, options, false);
+    }
+    // Token truly expired — notify app
+    onAuthExpired?.();
+    throw new Error("Sesión expirada");
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || "Request failed");
   }
   return res.json();
+}
+
+async function tryRefreshToken(): Promise<boolean> {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    const res = await fetch(`${BASE}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    localStorage.setItem("token", data.access_token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Proactive token refresh — call periodically
+export async function refreshTokenIfNeeded(): Promise<boolean> {
+  return tryRefreshToken();
 }
 
 // Auth
@@ -110,6 +175,45 @@ export function deleteProductBarcode(productId: string, barcodeId: string) {
   return request(`/products/${productId}/barcodes/${barcodeId}`, { method: "DELETE" });
 }
 
+export async function uploadProductImage(productId: string, file: File): Promise<{ image_url: string }> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}/products/${productId}/image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Error al subir imagen");
+  }
+  return res.json();
+}
+
+export function exportProductsCsv() {
+  const token = getToken();
+  return fetch(`${BASE}/products/export-csv`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => r.blob());
+}
+
+export async function importProductsCsv(file: File): Promise<{ created: number; updated: number; errors: string[] }> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}/products/import-csv`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Error al importar");
+  }
+  return res.json();
+}
+
 export function addVolumePromo(productId: string, min_units: number, promo_price: number) {
   return request(`/products/${productId}/promos`, {
     method: "POST",
@@ -171,4 +275,150 @@ export function updateUser(userId: string, data: Record<string, unknown>) {
 // Price Checker (public, no auth)
 export function priceCheck(barcode: string) {
   return request<PriceCheckResult>(`/price-check/${barcode}`);
+}
+
+// Reports
+export function getDashboard() {
+  return request<DashboardData>("/reports/dashboard");
+}
+
+export function getSalesSummary(start?: string, end?: string, groupBy = "day") {
+  const params = new URLSearchParams({ group_by: groupBy });
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  return request<SalesPeriod[]>(`/reports/sales-summary?${params}`);
+}
+
+export function getProductProfitability(start?: string, end?: string, limit = 50) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  return request<ProductProfit[]>(`/reports/product-profitability?${params}`);
+}
+
+export function getCategoryPerformance(start?: string, end?: string) {
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  return request<CategoryPerf[]>(`/reports/category-performance?${params}`);
+}
+
+export function getCashierPerformance(start?: string, end?: string) {
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  return request<CashierPerf[]>(`/reports/cashier-performance?${params}`);
+}
+
+export function getInventoryReport() {
+  return request<InventoryReport>("/reports/inventory");
+}
+
+export function exportSalesCsv(start?: string, end?: string) {
+  const token = getToken();
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  return fetch(`${BASE}/reports/export/sales-csv?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => r.blob());
+}
+
+// Chat
+export async function sendChatMessage(message: string, image?: File): Promise<{ reply: string; action: string | null; pending: boolean }> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("message", message);
+  if (image) form.append("image", image);
+  const res = await fetch(`${BASE}/chat`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Error en chat");
+  }
+  return res.json();
+}
+
+// Finance
+export function getFinanceEntries(start?: string, end?: string, entryType?: string) {
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  if (entryType) params.set("entry_type", entryType);
+  return request<FinanceEntry[]>(`/finance?${params}`);
+}
+
+export function getFinanceSummary(start?: string, end?: string) {
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  return request<FinanceSummary>(`/finance/summary?${params}`);
+}
+
+export function getFinanceCategories() {
+  return request<FinanceCategories>("/finance/categories");
+}
+
+export async function createFinanceEntry(data: {
+  entry_type: string;
+  category: string;
+  amount: number;
+  description: string;
+  date: string;
+  image?: File;
+}): Promise<FinanceEntry> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("entry_type", data.entry_type);
+  form.append("category", data.category);
+  form.append("amount", String(data.amount));
+  form.append("description", data.description);
+  form.append("date", data.date);
+  if (data.image) form.append("image", data.image);
+
+  const res = await fetch(`${BASE}/finance`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Error al crear registro");
+  }
+  return res.json();
+}
+
+export function deleteFinanceEntry(entryId: string) {
+  return request<{ ok: boolean }>(`/finance/${entryId}`, { method: "DELETE" });
+}
+
+export function getFinanceImageUrl(filename: string) {
+  return `${BASE}/finance/image/${filename}`;
+}
+
+export async function scanReceipt(image: File): Promise<{
+  entry_type: "income" | "expense";
+  amount: number;
+  category: string;
+  description: string;
+  date: string;
+  raw_text: string;
+  confidence: string;
+}> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("image", image);
+  const res = await fetch(`${BASE}/finance/scan-receipt`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Error al procesar imagen");
+  }
+  return res.json();
 }

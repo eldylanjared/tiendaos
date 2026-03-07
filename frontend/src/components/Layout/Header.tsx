@@ -1,16 +1,17 @@
 import type { User } from "@/types";
 
-type View = "terminal" | "admin" | "price-checker";
+type View = "terminal" | "admin" | "price-checker" | "finance" | "chat";
 
 interface Props {
   user: User;
   storeName: string;
   onLogout: () => void;
   view: View;
-  onViewChange: (view: View) => void;
+  onViewChange?: (view: View) => void; // undefined when locked to a path
+  locked?: boolean;
 }
 
-export default function Header({ user, storeName, onLogout, view, onViewChange }: Props) {
+export default function Header({ user, storeName, onLogout, view, onViewChange, locked }: Props) {
   const isAdminOrManager = user.role === "admin" || user.role === "manager";
 
   return (
@@ -19,25 +20,51 @@ export default function Header({ user, storeName, onLogout, view, onViewChange }
         <span style={styles.logo}>TiendaOS</span>
         <span style={styles.store}>{storeName}</span>
         <div style={styles.nav}>
-          <button
-            style={view === "terminal" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
-            onClick={() => onViewChange("terminal")}
-          >
-            Terminal
-          </button>
-          <button
-            style={view === "price-checker" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
-            onClick={() => onViewChange("price-checker")}
-          >
-            Precios
-          </button>
-          {isAdminOrManager && (
-            <button
-              style={view === "admin" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
-              onClick={() => onViewChange("admin")}
-            >
-              Admin
-            </button>
+          {locked ? (
+            // When on a locked path (e.g. /terminal), show links to other paths
+            <>
+              <a href="/terminal" style={view === "terminal" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Terminal</a>
+              <a href="/precios" style={view === "price-checker" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Precios</a>
+              {isAdminOrManager && (
+                <a href="/admin" style={view === "admin" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Admin</a>
+              )}
+              {isAdminOrManager && (
+                <a href="/finanzas" style={view === "finance" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Finanzas</a>
+              )}
+              {isAdminOrManager && (
+                <a href="/chat" style={view === "chat" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Chat</a>
+              )}
+            </>
+          ) : (
+            // On root path — use in-app view switching (no page reload)
+            <>
+              <button
+                style={view === "terminal" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                onClick={() => onViewChange?.("terminal")}
+              >Terminal</button>
+              <button
+                style={view === "price-checker" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                onClick={() => onViewChange?.("price-checker")}
+              >Precios</button>
+              {isAdminOrManager && (
+                <button
+                  style={view === "admin" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                  onClick={() => onViewChange?.("admin")}
+                >Admin</button>
+              )}
+              {isAdminOrManager && (
+                <button
+                  style={view === "finance" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                  onClick={() => onViewChange?.("finance")}
+                >Finanzas</button>
+              )}
+              {isAdminOrManager && (
+                <button
+                  style={view === "chat" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                  onClick={() => onViewChange?.("chat")}
+                >Chat</button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -75,6 +102,16 @@ const styles: Record<string, React.CSSProperties> = {
     background: "transparent",
     color: "#000",
     cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 500,
+  },
+  navLink: {
+    padding: "4px 12px",
+    borderRadius: 6,
+    border: "1px solid transparent",
+    background: "transparent",
+    color: "#000",
+    textDecoration: "none",
     fontSize: 12,
     fontWeight: 500,
   },

@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
-import { searchProducts } from "@/services/api";
+import { useState, useEffect, useRef } from "react";
+import { searchProducts, exportProductsCsv, importProductsCsv } from "@/services/api";
 import ProductForm from "@/components/Admin/ProductForm";
 import type { Product } from "@/types";
+import toast from "react-hot-toast";
 
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Product | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProducts();
@@ -24,6 +27,41 @@ export default function ProductManager() {
     setSelected(null);
     setShowCreate(false);
     loadProducts();
+  }
+
+  async function handleExport() {
+    try {
+      const blob = await exportProductsCsv();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "productos.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("CSV descargado");
+    } catch (err: any) {
+      toast.error(err.message || "Error al exportar");
+    }
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const result = await importProductsCsv(file);
+      toast.success(`Importado: ${result.created} nuevos, ${result.updated} actualizados`);
+      if (result.errors.length > 0) {
+        toast.error(`${result.errors.length} errores — revisa la consola`);
+        console.warn("Import errors:", result.errors);
+      }
+      loadProducts();
+    } catch (err: any) {
+      toast.error(err.message || "Error al importar");
+    } finally {
+      setImporting(false);
+      if (importRef.current) importRef.current.value = "";
+    }
   }
 
   if (showCreate) {
@@ -44,8 +82,27 @@ export default function ProductManager() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <button style={styles.addBtn} onClick={() => setShowCreate(true)}>
-          + Nuevo Producto
+          + Nuevo
         </button>
+      </div>
+      <div style={styles.ioBar}>
+        <button style={styles.exportBtn} onClick={handleExport}>
+          Exportar CSV
+        </button>
+        <button
+          style={styles.importBtn}
+          onClick={() => importRef.current?.click()}
+          disabled={importing}
+        >
+          {importing ? "Importando..." : "Importar CSV"}
+        </button>
+        <input
+          ref={importRef}
+          type="file"
+          accept=".csv"
+          style={{ display: "none" }}
+          onChange={handleImport}
+        />
       </div>
 
       <div style={styles.list}>
@@ -91,6 +148,27 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     whiteSpace: "nowrap",
+  },
+  ioBar: { display: "flex", gap: 8, marginBottom: 12 },
+  exportBtn: {
+    padding: "8px 14px",
+    borderRadius: 8,
+    border: "1px solid #16a34a",
+    background: "#f0fdf4",
+    color: "#16a34a",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 600,
+  },
+  importBtn: {
+    padding: "8px 14px",
+    borderRadius: 8,
+    border: "1px solid #2563eb",
+    background: "#eff6ff",
+    color: "#2563eb",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 600,
   },
   list: { display: "flex", flexDirection: "column", gap: 4 },
   row: {
