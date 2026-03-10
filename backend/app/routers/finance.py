@@ -111,6 +111,7 @@ async def create_entry(
             amount=amount,
             description=f"Pago de nomina — {emp_name}",
             date=entry_date,
+            is_personal=True,
         )
         db.add(income_entry)
 
@@ -124,11 +125,14 @@ async def create_entry(
 def _apply_user_filter(q, current_user: User, user_id: str | None):
     """Filter finance entries based on role and requested user_id."""
     if current_user.role in ("admin", "manager"):
-        # Admin/manager: show all by default, or filter by specific employee
         if user_id:
+            # Viewing a specific employee — show their entries including personal
             q = q.filter(
                 or_(FinanceEntry.assigned_to == user_id, FinanceEntry.user_id == user_id)
             )
+        else:
+            # Business view — exclude personal-only entries (e.g. nomina income for employees)
+            q = q.filter(or_(FinanceEntry.is_personal == False, FinanceEntry.is_personal == None))
     else:
         # Cashier: only see entries they created or assigned to them
         q = q.filter(
@@ -316,6 +320,7 @@ def _entry_to_dict(entry: FinanceEntry, names: dict[str, str] | None = None) -> 
         "description": entry.description,
         "image_path": entry.image_path,
         "date": entry.date.strftime("%Y-%m-%d") if entry.date else "",
+        "is_personal": bool(entry.is_personal),
         "created_at": entry.created_at.isoformat() if entry.created_at else "",
         "updated_at": entry.updated_at.isoformat() if entry.updated_at else "",
     }

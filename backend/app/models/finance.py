@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, Float, Text, DateTime, ForeignKey, Integer
+from sqlalchemy import Boolean, Column, String, Float, Text, DateTime, ForeignKey, Integer
 from app.database import Base
 
 
@@ -17,6 +17,7 @@ class FinanceEntry(Base):
     amount = Column(Float, nullable=False)
     description = Column(Text, default="")
     image_path = Column(String(500), default="")  # relative path to uploaded image
+    is_personal = Column(Boolean, default=False)  # True = employee-only entry (e.g. nomina income)
     date = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

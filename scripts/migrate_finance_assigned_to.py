@@ -41,6 +41,13 @@ def migrate(db_path: str):
             "UPDATE finance_entries SET updated_at = created_at WHERE updated_at IS NULL"
         )
 
+    add_column_if_missing(cursor, "finance_entries", "is_personal", "BOOLEAN DEFAULT 0")
+    # Mark existing nomina income entries as personal
+    cursor.execute(
+        "UPDATE finance_entries SET is_personal = 1 "
+        "WHERE entry_type = 'income' AND category = 'nomina' AND assigned_to IS NOT NULL AND is_personal = 0"
+    )
+
     print("Migrating products...")
     add_column_if_missing(cursor, "products", "is_favorite", "BOOLEAN DEFAULT 0")
 
