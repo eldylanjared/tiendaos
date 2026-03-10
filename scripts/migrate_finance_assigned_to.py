@@ -34,7 +34,11 @@ def migrate(db_path: str):
 
     if "updated_at" not in columns:
         cursor.execute(
-            "ALTER TABLE finance_entries ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+            "ALTER TABLE finance_entries ADD COLUMN updated_at DATETIME"
+        )
+        # Backfill with created_at values
+        cursor.execute(
+            "UPDATE finance_entries SET updated_at = created_at WHERE updated_at IS NULL"
         )
         print("Added 'updated_at' column.")
     else:
