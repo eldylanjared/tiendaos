@@ -1,6 +1,6 @@
 import type { User } from "@/types";
 
-type View = "terminal" | "admin" | "price-checker" | "finance" | "chat";
+type View = "terminal" | "admin" | "price-checker" | "finance" | "personal-finance" | "chat";
 
 interface Props {
   user: User;
@@ -28,9 +28,10 @@ export default function Header({ user, storeName, onLogout, view, onViewChange, 
               {isAdminOrManager && (
                 <a href="/admin" style={view === "admin" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Admin</a>
               )}
-              <a href="/finanzas" style={view === "finance" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>
-                {isAdminOrManager ? "Finanzas" : "Mis Gastos"}
-              </a>
+              {isAdminOrManager && (
+                <a href="/finanzas" style={view === "finance" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Finanzas</a>
+              )}
+              <a href="/mis-finanzas" style={view === "personal-finance" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Mis Finanzas</a>
               {isAdminOrManager && (
                 <a href="/chat" style={view === "chat" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Chat</a>
               )}
@@ -52,10 +53,16 @@ export default function Header({ user, storeName, onLogout, view, onViewChange, 
                   onClick={() => onViewChange?.("admin")}
                 >Admin</button>
               )}
+              {isAdminOrManager && (
+                <button
+                  style={view === "finance" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                  onClick={() => onViewChange?.("finance")}
+                >Finanzas</button>
+              )}
               <button
-                style={view === "finance" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
-                onClick={() => onViewChange?.("finance")}
-              >{isAdminOrManager ? "Finanzas" : "Mis Gastos"}</button>
+                style={view === "personal-finance" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                onClick={() => onViewChange?.("personal-finance")}
+              >Mis Finanzas</button>
               {isAdminOrManager && (
                 <button
                   style={view === "chat" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}

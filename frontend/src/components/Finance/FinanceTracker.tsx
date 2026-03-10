@@ -8,6 +8,7 @@ import type { FinanceEntry, FinanceSummary, FinanceCategories, FinanceEmployee, 
 import toast from "react-hot-toast";
 
 const CATEGORY_LABELS: Record<string, string> = {
+  // Business
   proveedores: "Proveedores",
   renta: "Renta",
   servicios: "Servicios (luz, agua, tel)",
@@ -22,6 +23,18 @@ const CATEGORY_LABELS: Record<string, string> = {
   otros_ingresos: "Otros Ingresos",
   prestamo: "Prestamo",
   devolucion: "Devolucion",
+  // Personal
+  comida: "Comida",
+  salud: "Salud",
+  educacion: "Educacion",
+  entretenimiento: "Entretenimiento",
+  ropa: "Ropa",
+  ahorro: "Ahorro",
+  deudas: "Deudas",
+  propinas: "Propinas",
+  freelance: "Freelance",
+  ventas: "Ventas",
+  otros: "Otros",
 };
 
 /** Format number with commas for thousands and dot for cents: 1,234,567.89 */
@@ -33,10 +46,11 @@ type Tab = "list" | "add";
 
 interface Props {
   user: User;
+  personal?: boolean; // true = personal finance mode
 }
 
-export default function FinanceTracker({ user }: Props) {
-  const isAdminOrManager = user.role === "admin" || user.role === "manager";
+export default function FinanceTracker({ user, personal = false }: Props) {
+  const isAdminOrManager = !personal && (user.role === "admin" || user.role === "manager");
 
   const [tab, setTab] = useState<Tab>("list");
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
@@ -70,11 +84,11 @@ export default function FinanceTracker({ user }: Props) {
 
   useEffect(() => {
     loadData();
-    getFinanceCategories().then(setCategories).catch(() => {});
+    getFinanceCategories(personal).then(setCategories).catch(() => {});
     if (isAdminOrManager) {
       getFinanceEmployees().then(setEmployees).catch(() => {});
     }
-  }, []);
+  }, [personal]);
 
   useEffect(() => { loadData(); }, [start, end, filter, filterEmployee]);
 
@@ -82,8 +96,8 @@ export default function FinanceTracker({ user }: Props) {
     try {
       const userId = filterEmployee || undefined;
       const [e, s] = await Promise.all([
-        getFinanceEntries(start || undefined, end || undefined, filter === "all" ? undefined : filter, userId),
-        getFinanceSummary(start || undefined, end || undefined, userId),
+        getFinanceEntries(start || undefined, end || undefined, filter === "all" ? undefined : filter, userId, personal),
+        getFinanceSummary(start || undefined, end || undefined, userId, personal),
       ]);
       setEntries(e);
       setSummary(s);
@@ -148,6 +162,7 @@ export default function FinanceTracker({ user }: Props) {
         date: entryDate,
         assigned_to: assignedTo || undefined,
         image: image || undefined,
+        is_personal: personal,
       });
       toast.success(entryType === "income" ? "Ingreso registrado" : "Gasto registrado");
       if (image && description) {
@@ -215,7 +230,7 @@ export default function FinanceTracker({ user }: Props) {
       )}
 
       {/* Title */}
-      <h2 style={s.pageTitle}>{isAdminOrManager ? "Finanzas" : "Mis Gastos"}</h2>
+      <h2 style={s.pageTitle}>{personal ? "Finanzas Personales" : isAdminOrManager ? "Finanzas" : "Mis Gastos"}</h2>
 
       {/* Tab bar */}
       <div style={s.tabBar}>
@@ -370,7 +385,7 @@ export default function FinanceTracker({ user }: Props) {
                         onClick={() => setPreviewImg(getFinanceImageUrl(entry.image_path))}
                       >Foto</button>
                     )}
-                    {isAdminOrManager && (
+                    {(isAdminOrManager || (personal && entry.user_id === user.id)) && (
                       <button style={s.deleteBtn} onClick={() => handleDelete(entry.id)}>X</button>
                     )}
                   </div>

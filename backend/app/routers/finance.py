@@ -27,6 +27,14 @@ INCOME_CATEGORIES = [
     "ventas_efectivo", "ventas_tarjeta", "nomina", "otros_ingresos", "prestamo", "devolucion",
 ]
 
+PERSONAL_EXPENSE_CATEGORIES = [
+    "comida", "transporte", "renta", "servicios", "salud",
+    "educacion", "entretenimiento", "ropa", "ahorro", "deudas", "varios",
+]
+PERSONAL_INCOME_CATEGORIES = [
+    "nomina", "propinas", "freelance", "ventas", "prestamo", "otros",
+]
+
 
 def _user_name_map(db: Session) -> dict[str, str]:
     """Build a {user_id: full_name} lookup."""
@@ -42,6 +50,7 @@ async def create_entry(
     description: str = Form(""),
     date: str = Form(""),  # YYYY-MM-DD, defaults to today
     assigned_to: str = Form(""),  # employee id to assign this entry to
+    is_personal: str = Form(""),  # "true" for personal finance entries
     image: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -85,6 +94,8 @@ async def create_entry(
             f.write(content)
         image_path = filename
 
+    mark_personal = is_personal.lower() == "true" if is_personal else False
+
     entry = FinanceEntry(
         store_id=settings.store_id,
         user_id=current_user.id,
@@ -95,6 +106,7 @@ async def create_entry(
         description=description,
         image_path=image_path,
         date=entry_date,
+        is_personal=mark_personal,
     )
     db.add(entry)
 
@@ -127,25 +139,32 @@ async def create_entry(
     return _entry_to_dict(entry, names)
 
 
-def _apply_user_filter(q, current_user: User, user_id: str | None):
-    """Filter finance entries based on role and requested user_id."""
-    if current_user.role in ("admin", "manager"):
-        if user_id:
-            # Viewing a specific employee — show their entries including personal
-            q = q.filter(
-                or_(FinanceEntry.assigned_to == user_id, FinanceEntry.user_id == user_id)
-            )
-        else:
-            # Business view — exclude personal-only entries (e.g. nomina income for employees)
-            q = q.filter(or_(FinanceEntry.is_personal == False, FinanceEntry.is_personal == None))
-    else:
-        # Cashier: see entries they created + personal entries assigned to them (e.g. nomina income)
-        # Exclude business entries that happen to be assigned to them (e.g. nomina expense)
+def _apply_user_filter(q, current_user: User, user_id: str | None, personal: bool = False):
+    """Filter finance entries based on role, requested user_id, and personal mode."""
+    if personal:
+        # Personal finance — only entries owned by this user that are marked personal
         q = q.filter(
+            FinanceEntry.is_personal == True,
             or_(
                 FinanceEntry.user_id == current_user.id,
-                (FinanceEntry.assigned_to == current_user.id) & (FinanceEntry.is_personal == True),
+                FinanceEntry.assigned_to == current_user.id,
+            ),
+        )
+    elif current_user.role in ("admin", "manager"):
+        if user_id:
+            # Viewing a specific employee — show their business entries
+            q = q.filter(
+                or_(FinanceEntry.assigned_to == user_id, FinanceEntry.user_id == user_id),
+                or_(FinanceEntry.is_personal == False, FinanceEntry.is_personal == None),
             )
+        else:
+            # Business view — exclude personal-only entries
+            q = q.filter(or_(FinanceEntry.is_personal == False, FinanceEntry.is_personal == None))
+    else:
+        # Cashier business view — only entries they created that are NOT personal
+        q = q.filter(
+            FinanceEntry.user_id == current_user.id,
+            or_(FinanceEntry.is_personal == False, FinanceEntry.is_personal == None),
         )
     return q
 
@@ -156,6 +175,7 @@ def list_entries(
     end: str | None = Query(None),
     entry_type: str | None = Query(None),
     user_id: str | None = Query(None),
+    personal: bool = Query(False),
     limit: int = Query(100, le=500),
     offset: int = Query(0),
     db: Session = Depends(get_db),
@@ -171,7 +191,7 @@ def list_entries(
         end_dt = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
         q = q.filter(FinanceEntry.date < end_dt)
 
-    q = _apply_user_filter(q, current_user, user_id)
+    q = _apply_user_filter(q, current_user, user_id, personal=personal)
 
     entries = q.order_by(FinanceEntry.date.desc()).offset(offset).limit(limit).all()
     names = _user_name_map(db)
@@ -183,6 +203,7 @@ def finance_summary(
     start: str | None = Query(None),
     end: str | None = Query(None),
     user_id: str | None = Query(None),
+    personal: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -194,7 +215,7 @@ def finance_summary(
         end_dt = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
         q = q.filter(FinanceEntry.date < end_dt)
 
-    q = _apply_user_filter(q, current_user, user_id)
+    q = _apply_user_filter(q, current_user, user_id, personal=personal)
 
     entries = q.all()
 
@@ -280,7 +301,15 @@ def learn_vendor_mapping(
 
 
 @router.get("/categories")
-def get_categories(_user: User = Depends(get_current_user)):
+def get_categories(
+    personal: bool = Query(False),
+    _user: User = Depends(get_current_user),
+):
+    if personal:
+        return {
+            "expense": PERSONAL_EXPENSE_CATEGORIES,
+            "income": PERSONAL_INCOME_CATEGORIES,
+        }
     return {
         "expense": EXPENSE_CATEGORIES,
         "income": INCOME_CATEGORIES,
@@ -299,11 +328,17 @@ def get_image(filename: str, _user: User = Depends(get_current_user)):
 def delete_entry(
     entry_id: str,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_role("admin", "manager")),
+    current_user: User = Depends(get_current_user),
 ):
     entry = db.query(FinanceEntry).filter(FinanceEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
+
+    # Employees can only delete their own personal entries
+    is_admin = current_user.role in ("admin", "manager")
+    is_own_personal = entry.is_personal and entry.user_id == current_user.id
+    if not is_admin and not is_own_personal:
+        raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este registro")
 
     # Delete image file if exists
     if entry.image_path:

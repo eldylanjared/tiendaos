@@ -15,7 +15,7 @@ import toast from "react-hot-toast";
 
 const STORE_NAME = "Tienda Centro"; // Loaded from backend in Phase 2
 
-type View = "terminal" | "admin" | "price-checker" | "finance" | "chat";
+type View = "terminal" | "admin" | "price-checker" | "finance" | "personal-finance" | "chat";
 
 // Path-based routing: /precios, /terminal, /admin
 // "locked" means the URL path locks to that view (no nav switching)
@@ -26,6 +26,7 @@ function getViewFromPath(): { view: View; locked: boolean } {
   if (path === "/admin") return { view: "admin", locked: true };
   if (path === "/terminal") return { view: "terminal", locked: true };
   if (path === "/finanzas") return { view: "finance", locked: true };
+  if (path === "/mis-finanzas") return { view: "personal-finance", locked: true };
   if (path === "/chat") return { view: "chat", locked: true };
 
   // Legacy query param support
@@ -103,6 +104,7 @@ export default function App() {
       {view === "admin" && <AdminPanel />}
       {view === "price-checker" && <PriceChecker storeName={STORE_NAME} />}
       {view === "finance" && <div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} /></div>}
+      {view === "personal-finance" && <div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} personal /></div>}
       {view === "chat" && <div style={{ flex: 1, overflow: "hidden" }}><ChatPanel /></div>}
       <Toaster position="top-right" />
     </div>

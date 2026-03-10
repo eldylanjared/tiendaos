@@ -349,20 +349,22 @@ export async function sendChatMessage(message: string, image?: File): Promise<{ 
 }
 
 // Finance
-export function getFinanceEntries(start?: string, end?: string, entryType?: string, userId?: string) {
+export function getFinanceEntries(start?: string, end?: string, entryType?: string, userId?: string, personal?: boolean) {
   const params = new URLSearchParams();
   if (start) params.set("start", start);
   if (end) params.set("end", end);
   if (entryType) params.set("entry_type", entryType);
   if (userId) params.set("user_id", userId);
+  if (personal) params.set("personal", "true");
   return request<FinanceEntry[]>(`/finance?${params}`);
 }
 
-export function getFinanceSummary(start?: string, end?: string, userId?: string) {
+export function getFinanceSummary(start?: string, end?: string, userId?: string, personal?: boolean) {
   const params = new URLSearchParams();
   if (start) params.set("start", start);
   if (end) params.set("end", end);
   if (userId) params.set("user_id", userId);
+  if (personal) params.set("personal", "true");
   return request<FinanceSummary>(`/finance/summary?${params}`);
 }
 
@@ -370,8 +372,9 @@ export function getFinanceEmployees() {
   return request<{ id: string; full_name: string; role: string }[]>("/finance/employees");
 }
 
-export function getFinanceCategories() {
-  return request<FinanceCategories>("/finance/categories");
+export function getFinanceCategories(personal?: boolean) {
+  const params = personal ? "?personal=true" : "";
+  return request<FinanceCategories>(`/finance/categories${params}`);
 }
 
 export async function createFinanceEntry(data: {
@@ -382,6 +385,7 @@ export async function createFinanceEntry(data: {
   date: string;
   assigned_to?: string;
   image?: File;
+  is_personal?: boolean;
 }): Promise<FinanceEntry> {
   const token = getToken();
   const form = new FormData();
@@ -391,6 +395,7 @@ export async function createFinanceEntry(data: {
   form.append("description", data.description);
   form.append("date", data.date);
   if (data.assigned_to) form.append("assigned_to", data.assigned_to);
+  if (data.is_personal) form.append("is_personal", "true");
   if (data.image) form.append("image", data.image);
 
   const res = await fetch(`${BASE}/finance`, {
