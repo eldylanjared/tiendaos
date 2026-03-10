@@ -132,6 +132,15 @@ export default function PriceChecker({ storeName }: Props) {
                   Precio unitario: ${product.unit_price.toFixed(2)}
                 </p>
               )}
+              {product.volume_promos && product.volume_promos.length > 0 && (
+                <div style={styles.promoList}>
+                  {product.volume_promos.map((vp, i) => (
+                    <span key={i} style={styles.promoBadge}>
+                      {vp.min_units} x ${vp.bundle_price.toFixed(2)}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -232,4 +241,18 @@ const styles: Record<string, React.CSSProperties> = {
   priceCents: { fontSize: 32, fontWeight: 700, color: "#16a34a", alignSelf: "flex-start", marginTop: 8 },
   perKg: { fontSize: 20, color: "#64748b", marginLeft: 4 },
   unitPriceNote: { fontSize: 14, color: "#64748b", marginTop: 8 },
+  promoList: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 12,
+  },
+  promoBadge: {
+    fontSize: 16,
+    fontWeight: 700,
+    padding: "6px 14px",
+    borderRadius: 8,
+    background: "#dcfce7",
+    color: "#16a34a",
+  },
 };

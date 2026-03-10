@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import {
   getFinanceEntries, getFinanceSummary, getFinanceCategories,
   createFinanceEntry, deleteFinanceEntry, getFinanceImageUrl,
-  scanReceipt,
+  scanReceipt, getFinanceEmployees,
 } from "@/services/api";
-import type { FinanceEntry, FinanceSummary, FinanceCategories } from "@/types";
+import type { FinanceEntry, FinanceSummary, FinanceCategories, FinanceEmployee, User } from "@/types";
 import toast from "react-hot-toast";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -26,12 +26,20 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 type Tab = "list" | "add";
 
-export default function FinanceTracker() {
+interface Props {
+  user: User;
+}
+
+export default function FinanceTracker({ user }: Props) {
+  const isAdminOrManager = user.role === "admin" || user.role === "manager";
+
   const [tab, setTab] = useState<Tab>("list");
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [categories, setCategories] = useState<FinanceCategories | null>(null);
+  const [employees, setEmployees] = useState<FinanceEmployee[]>([]);
   const [filter, setFilter] = useState<"all" | "income" | "expense">("all");
+  const [filterEmployee, setFilterEmployee] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
@@ -44,6 +52,7 @@ export default function FinanceTracker() {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [entryDate, setEntryDate] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -52,15 +61,19 @@ export default function FinanceTracker() {
   useEffect(() => {
     loadData();
     getFinanceCategories().then(setCategories).catch(() => {});
+    if (isAdminOrManager) {
+      getFinanceEmployees().then(setEmployees).catch(() => {});
+    }
   }, []);
 
-  useEffect(() => { loadData(); }, [start, end, filter]);
+  useEffect(() => { loadData(); }, [start, end, filter, filterEmployee]);
 
   async function loadData() {
     try {
+      const userId = filterEmployee || undefined;
       const [e, s] = await Promise.all([
-        getFinanceEntries(start || undefined, end || undefined, filter === "all" ? undefined : filter),
-        getFinanceSummary(start || undefined, end || undefined),
+        getFinanceEntries(start || undefined, end || undefined, filter === "all" ? undefined : filter, userId),
+        getFinanceSummary(start || undefined, end || undefined, userId),
       ]);
       setEntries(e);
       setSummary(s);
@@ -83,11 +96,9 @@ export default function FinanceTracker() {
     setScanning(true);
     try {
       const result = await scanReceipt(file);
-      // Auto-fill form with extracted data
       if (result.amount > 0) setAmount(String(result.amount));
       if (result.category) setCategory(result.category);
       if (result.description) setDescription(result.description);
-      // Validate OCR date — ignore if more than 1 year old or in the future
       if (result.date) {
         const ocrDate = new Date(result.date);
         const now = new Date();
@@ -98,7 +109,6 @@ export default function FinanceTracker() {
         if (ocrDate >= oneYearAgo && ocrDate < tomorrow) {
           setEntryDate(result.date);
         }
-        // else: keep today's date (default)
       }
       if (result.entry_type) setEntryType(result.entry_type as "income" | "expense");
       setRawText(result.raw_text || "");
@@ -127,10 +137,10 @@ export default function FinanceTracker() {
         amount: Number(amount),
         description,
         date: entryDate,
+        assigned_to: assignedTo || undefined,
         image: image || undefined,
       });
       toast.success(entryType === "income" ? "Ingreso registrado" : "Gasto registrado");
-      // Teach the system this vendor→category mapping if there was an image
       if (image && description) {
         try {
           const form = new FormData();
@@ -144,13 +154,12 @@ export default function FinanceTracker() {
           });
         } catch { /* non-critical */ }
       }
-      // Expand date filter if the entry's date falls outside current range
       if (entryDate < start) setStart(entryDate);
       if (entryDate > end) setEnd(entryDate);
-      // Reset form
       setCategory("");
       setAmount("");
       setDescription("");
+      setAssignedTo("");
       setImage(null);
       setImagePreview(null);
       setRawText("");
@@ -188,6 +197,9 @@ export default function FinanceTracker() {
           <img src={previewImg} style={s.previewImage} alt="Recibo" />
         </div>
       )}
+
+      {/* Title */}
+      <h2 style={s.pageTitle}>{isAdminOrManager ? "Finanzas" : "Mis Gastos"}</h2>
 
       {/* Tab bar */}
       <div style={s.tabBar}>
@@ -263,6 +275,18 @@ export default function FinanceTracker() {
               <option value="income">Ingresos</option>
               <option value="expense">Gastos</option>
             </select>
+            {isAdminOrManager && employees.length > 0 && (
+              <select
+                style={s.select}
+                value={filterEmployee}
+                onChange={(e) => setFilterEmployee(e.target.value)}
+              >
+                <option value="">Todos los empleados</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Entry list */}
@@ -281,7 +305,15 @@ export default function FinanceTracker() {
                     <span style={s.entryCat}>{CATEGORY_LABELS[entry.category] || entry.category}</span>
                   </div>
                   {entry.description && <span style={s.entryDesc}>{entry.description}</span>}
-                  <span style={s.entryDate}>{entry.date}</span>
+                  <div style={s.entryMeta}>
+                    <span style={s.entryDate}>{entry.date}</span>
+                    {entry.assigned_name && (
+                      <span style={s.assignedBadge}>{entry.assigned_name}</span>
+                    )}
+                    {!entry.assigned_name && isAdminOrManager && entry.user_name && (
+                      <span style={s.creatorLabel}>por {entry.user_name}</span>
+                    )}
+                  </div>
                 </div>
                 <div style={s.entryRight}>
                   <span style={{
@@ -297,7 +329,9 @@ export default function FinanceTracker() {
                         onClick={() => setPreviewImg(getFinanceImageUrl(entry.image_path))}
                       >Foto</button>
                     )}
-                    <button style={s.deleteBtn} onClick={() => handleDelete(entry.id)}>X</button>
+                    {isAdminOrManager && (
+                      <button style={s.deleteBtn} onClick={() => handleDelete(entry.id)}>X</button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -348,6 +382,23 @@ export default function FinanceTracker() {
               </button>
             ))}
           </div>
+
+          {/* Assign to employee */}
+          {isAdminOrManager && employees.length > 0 && (
+            <>
+              <label style={s.label}>Asignar a empleado (opcional)</label>
+              <select
+                style={s.input}
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+              >
+                <option value="">Sin asignar (gasto de tienda)</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.role})</option>
+                ))}
+              </select>
+            </>
+          )}
 
           {/* Description */}
           <label style={s.label}>Descripcion (opcional)</label>
@@ -435,6 +486,12 @@ const s: Record<string, React.CSSProperties> = {
     padding: "0 8px",
     paddingBottom: 40,
   },
+  pageTitle: {
+    fontSize: 20,
+    fontWeight: 700,
+    color: "#0f172a",
+    margin: "16px 0 8px",
+  },
   overlay: {
     position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
     background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center",
@@ -482,7 +539,13 @@ const s: Record<string, React.CSSProperties> = {
   typeBadge: { fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4 },
   entryCat: { fontSize: 13, fontWeight: 600, color: "#0f172a" },
   entryDesc: { fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  entryMeta: { display: "flex", alignItems: "center", gap: 6 },
   entryDate: { fontSize: 11, color: "#94a3b8" },
+  assignedBadge: {
+    fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 4,
+    background: "#dbeafe", color: "#1e40af",
+  },
+  creatorLabel: { fontSize: 10, color: "#94a3b8" },
   entryRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 },
   entryAmount: { fontSize: 16, fontWeight: 700 },
   entryActions: { display: "flex", gap: 4 },

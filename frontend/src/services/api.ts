@@ -343,19 +343,25 @@ export async function sendChatMessage(message: string, image?: File): Promise<{ 
 }
 
 // Finance
-export function getFinanceEntries(start?: string, end?: string, entryType?: string) {
+export function getFinanceEntries(start?: string, end?: string, entryType?: string, userId?: string) {
   const params = new URLSearchParams();
   if (start) params.set("start", start);
   if (end) params.set("end", end);
   if (entryType) params.set("entry_type", entryType);
+  if (userId) params.set("user_id", userId);
   return request<FinanceEntry[]>(`/finance?${params}`);
 }
 
-export function getFinanceSummary(start?: string, end?: string) {
+export function getFinanceSummary(start?: string, end?: string, userId?: string) {
   const params = new URLSearchParams();
   if (start) params.set("start", start);
   if (end) params.set("end", end);
+  if (userId) params.set("user_id", userId);
   return request<FinanceSummary>(`/finance/summary?${params}`);
+}
+
+export function getFinanceEmployees() {
+  return request<{ id: string; full_name: string; role: string }[]>("/finance/employees");
 }
 
 export function getFinanceCategories() {
@@ -368,6 +374,7 @@ export async function createFinanceEntry(data: {
   amount: number;
   description: string;
   date: string;
+  assigned_to?: string;
   image?: File;
 }): Promise<FinanceEntry> {
   const token = getToken();
@@ -377,6 +384,7 @@ export async function createFinanceEntry(data: {
   form.append("amount", String(data.amount));
   form.append("description", data.description);
   form.append("date", data.date);
+  if (data.assigned_to) form.append("assigned_to", data.assigned_to);
   if (data.image) form.append("image", data.image);
 
   const res = await fetch(`${BASE}/finance`, {

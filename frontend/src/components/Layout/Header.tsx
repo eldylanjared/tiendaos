@@ -28,9 +28,9 @@ export default function Header({ user, storeName, onLogout, view, onViewChange, 
               {isAdminOrManager && (
                 <a href="/admin" style={view === "admin" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Admin</a>
               )}
-              {isAdminOrManager && (
-                <a href="/finanzas" style={view === "finance" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Finanzas</a>
-              )}
+              <a href="/finanzas" style={view === "finance" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>
+                {isAdminOrManager ? "Finanzas" : "Mis Gastos"}
+              </a>
               {isAdminOrManager && (
                 <a href="/chat" style={view === "chat" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Chat</a>
               )}
@@ -52,12 +52,10 @@ export default function Header({ user, storeName, onLogout, view, onViewChange, 
                   onClick={() => onViewChange?.("admin")}
                 >Admin</button>
               )}
-              {isAdminOrManager && (
-                <button
-                  style={view === "finance" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
-                  onClick={() => onViewChange?.("finance")}
-                >Finanzas</button>
-              )}
+              <button
+                style={view === "finance" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                onClick={() => onViewChange?.("finance")}
+              >{isAdminOrManager ? "Finanzas" : "Mis Gastos"}</button>
               {isAdminOrManager && (
                 <button
                   style={view === "chat" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}

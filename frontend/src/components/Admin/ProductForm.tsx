@@ -258,13 +258,13 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
           <h3 style={styles.sectionTitle}>Promos de Volumen</h3>
           {promos.map((p) => (
             <div key={p.id} style={styles.subRow}>
-              <span>{p.min_units}+ uds @ ${p.promo_price.toFixed(2)} c/u</span>
+              <span>{p.min_units} x ${p.promo_price.toFixed(2)} (${(p.promo_price / p.min_units).toFixed(2)} c/u)</span>
               <button style={styles.deleteBtn} onClick={() => handleDeletePromo(p.id)}>Eliminar</button>
             </div>
           ))}
           <div style={styles.subForm}>
-            <input style={styles.smallInput} type="number" placeholder="Min uds" value={newMinUnits} onChange={(e) => setNewMinUnits(parseInt(e.target.value) || 1)} />
-            <input style={styles.smallInput} type="number" step="0.01" placeholder="Precio promo" value={newPromoPrice || ""} onChange={(e) => setNewPromoPrice(parseFloat(e.target.value) || 0)} />
+            <input style={styles.smallInput} type="number" placeholder="Cantidad" value={newMinUnits} onChange={(e) => setNewMinUnits(parseInt(e.target.value) || 1)} />
+            <input style={styles.smallInput} type="number" step="0.01" placeholder="Precio total paquete" value={newPromoPrice || ""} onChange={(e) => setNewPromoPrice(parseFloat(e.target.value) || 0)} />
             <button style={styles.addSubBtn} onClick={handleAddPromo}>Agregar</button>
           </div>
         </div>

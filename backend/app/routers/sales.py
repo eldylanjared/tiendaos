@@ -53,17 +53,26 @@ def create_sale(
         else:
             unit_price = product.price
 
-        # Apply volume promo for single-unit items
+        # Apply volume promo for single-unit items (bundle pricing)
         if item_data.pack_units == 1 and not product.sell_by_weight:
-            total_qty = product_units.get(item_data.product_id, 0)
-            best_promo = (
+            total_qty = int(product_units.get(item_data.product_id, 0))
+            promos = (
                 db.query(VolumePromo)
-                .filter(VolumePromo.product_id == product.id, VolumePromo.min_units <= total_qty)
+                .filter(VolumePromo.product_id == product.id)
                 .order_by(VolumePromo.min_units.desc())
-                .first()
+                .all()
             )
-            if best_promo:
-                unit_price = best_promo.promo_price
+            if promos:
+                # Greedy bundle matching: apply best deals first
+                remaining = total_qty
+                bundle_total = 0.0
+                for promo in promos:
+                    if remaining >= promo.min_units:
+                        bundles = remaining // promo.min_units
+                        bundle_total += bundles * promo.promo_price  # promo_price = bundle total
+                        remaining -= bundles * promo.min_units
+                bundle_total += remaining * product.price
+                unit_price = bundle_total / total_qty
 
         discount = item_data.discount_percent / 100.0
         line_total = round(unit_price * item_data.quantity * (1 - discount), 2)

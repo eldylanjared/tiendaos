@@ -46,6 +46,14 @@ export default function Cart({ items, subtotal, tax, total, onUpdateQty, onRemov
                   ${unitPrice.toFixed(2)} {isWeight(item) ? "/kg" : "c/u"}
                 </div>
               </div>
+              {item.pack_units === 1 && !isWeight(item) && item.product.volume_promos?.length > 0 && (
+                <div style={styles.promoHint}>
+                  {item.product.volume_promos
+                    .sort((a, b) => a.min_units - b.min_units)
+                    .map((vp) => `${vp.min_units}x$${vp.promo_price}`)
+                    .join(" | ")}
+                </div>
+              )}
               <div style={styles.qtyRow}>
                 {isWeight(item) ? (
                   <span style={styles.qtyVal}>{item.quantity.toFixed(3)} kg</span>
@@ -196,4 +204,10 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   payBtnDisabled: { background: "#cbd5e1", cursor: "default" },
+  promoHint: {
+    fontSize: 11,
+    color: "#16a34a",
+    fontWeight: 600,
+    marginTop: 2,
+  },
 };

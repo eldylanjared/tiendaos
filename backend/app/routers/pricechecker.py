@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.product import Product, ProductBarcode
+from app.models.product import Product, ProductBarcode, VolumePromo
 from app.schemas.product import ProductResponse, PackInfo
 
 router = APIRouter(prefix="/api/price-check", tags=["price-checker"])
@@ -34,6 +34,14 @@ def price_check(barcode: str, db: Session = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    # Include volume promos for bundle pricing display
+    promos = (
+        db.query(VolumePromo)
+        .filter(VolumePromo.product_id == product.id)
+        .order_by(VolumePromo.min_units.asc())
+        .all()
+    )
+
     return {
         "name": product.name,
         "price": product.price,
@@ -41,4 +49,12 @@ def price_check(barcode: str, db: Session = Depends(get_db)):
         "image_url": product.image_url,
         "sell_by_weight": product.sell_by_weight,
         "pack": None,
+        "volume_promos": [
+            {
+                "min_units": vp.min_units,
+                "bundle_price": vp.promo_price,
+                "unit_price": round(vp.promo_price / vp.min_units, 2),
+            }
+            for vp in promos
+        ],
     }

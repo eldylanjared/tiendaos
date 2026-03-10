@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -28,6 +28,12 @@ INCOME_CATEGORIES = [
 ]
 
 
+def _user_name_map(db: Session) -> dict[str, str]:
+    """Build a {user_id: full_name} lookup."""
+    users = db.query(User.id, User.full_name).all()
+    return {u.id: u.full_name for u in users}
+
+
 @router.post("")
 async def create_entry(
     entry_type: str = Form(...),
@@ -35,6 +41,7 @@ async def create_entry(
     amount: float = Form(...),
     description: str = Form(""),
     date: str = Form(""),  # YYYY-MM-DD, defaults to today
+    assigned_to: str = Form(""),  # employee id to assign this entry to
     image: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -50,6 +57,19 @@ async def create_entry(
             entry_date = datetime.strptime(date, "%Y-%m-%d")
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+
+    # Only admin/manager can assign entries to other employees
+    resolved_assigned_to = None
+    if assigned_to:
+        if current_user.role in ("admin", "manager"):
+            # Verify the employee exists
+            emp = db.query(User).filter(User.id == assigned_to).first()
+            if not emp:
+                raise HTTPException(status_code=400, detail="Employee not found")
+            resolved_assigned_to = assigned_to
+        else:
+            # Cashiers can only assign to themselves
+            resolved_assigned_to = current_user.id
 
     image_path = ""
     if image and image.filename:
@@ -68,6 +88,7 @@ async def create_entry(
     entry = FinanceEntry(
         store_id=settings.store_id,
         user_id=current_user.id,
+        assigned_to=resolved_assigned_to,
         entry_type=entry_type,
         category=category,
         amount=amount,
@@ -79,7 +100,24 @@ async def create_entry(
     db.commit()
     db.refresh(entry)
 
-    return _entry_to_dict(entry)
+    names = _user_name_map(db)
+    return _entry_to_dict(entry, names)
+
+
+def _apply_user_filter(q, current_user: User, user_id: str | None):
+    """Filter finance entries based on role and requested user_id."""
+    if current_user.role in ("admin", "manager"):
+        # Admin/manager: show all by default, or filter by specific employee
+        if user_id:
+            q = q.filter(
+                or_(FinanceEntry.assigned_to == user_id, FinanceEntry.user_id == user_id)
+            )
+    else:
+        # Cashier: only see entries they created or assigned to them
+        q = q.filter(
+            or_(FinanceEntry.user_id == current_user.id, FinanceEntry.assigned_to == current_user.id)
+        )
+    return q
 
 
 @router.get("")
@@ -87,10 +125,11 @@ def list_entries(
     start: str | None = Query(None),
     end: str | None = Query(None),
     entry_type: str | None = Query(None),
+    user_id: str | None = Query(None),
     limit: int = Query(100, le=500),
     offset: int = Query(0),
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     q = db.query(FinanceEntry).filter(FinanceEntry.store_id == settings.store_id)
 
@@ -102,16 +141,20 @@ def list_entries(
         end_dt = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
         q = q.filter(FinanceEntry.date < end_dt)
 
+    q = _apply_user_filter(q, current_user, user_id)
+
     entries = q.order_by(FinanceEntry.date.desc()).offset(offset).limit(limit).all()
-    return [_entry_to_dict(e) for e in entries]
+    names = _user_name_map(db)
+    return [_entry_to_dict(e, names) for e in entries]
 
 
 @router.get("/summary")
 def finance_summary(
     start: str | None = Query(None),
     end: str | None = Query(None),
+    user_id: str | None = Query(None),
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     q = db.query(FinanceEntry).filter(FinanceEntry.store_id == settings.store_id)
 
@@ -120,6 +163,8 @@ def finance_summary(
     if end:
         end_dt = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
         q = q.filter(FinanceEntry.date < end_dt)
+
+    q = _apply_user_filter(q, current_user, user_id)
 
     entries = q.all()
 
@@ -150,6 +195,24 @@ def finance_summary(
         "expense_categories": expense_categories,
         "income_categories": income_categories,
     }
+
+
+@router.get("/employees")
+def get_employees(
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_role("admin", "manager")),
+):
+    """List employees for the assign-to dropdown."""
+    users = (
+        db.query(User)
+        .filter(User.is_active == True)
+        .order_by(User.full_name)
+        .all()
+    )
+    return [
+        {"id": u.id, "full_name": u.full_name, "role": u.role}
+        for u in users
+    ]
 
 
 @router.post("/scan-receipt")
@@ -223,9 +286,13 @@ def delete_entry(
     return {"ok": True}
 
 
-def _entry_to_dict(entry: FinanceEntry) -> dict:
+def _entry_to_dict(entry: FinanceEntry, names: dict[str, str] | None = None) -> dict:
     return {
         "id": entry.id,
+        "user_id": entry.user_id,
+        "assigned_to": entry.assigned_to,
+        "user_name": names.get(entry.user_id, "") if names else "",
+        "assigned_name": names.get(entry.assigned_to, "") if names and entry.assigned_to else "",
         "entry_type": entry.entry_type,
         "category": entry.category,
         "amount": entry.amount,

@@ -102,7 +102,7 @@ export default function App() {
       {view === "terminal" && <Terminal storeName={STORE_NAME} />}
       {view === "admin" && <AdminPanel />}
       {view === "price-checker" && <PriceChecker storeName={STORE_NAME} />}
-      {view === "finance" && <div style={{ flex: 1, overflow: "auto" }}><FinanceTracker /></div>}
+      {view === "finance" && <div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} /></div>}
       {view === "chat" && <div style={{ flex: 1, overflow: "hidden" }}><ChatPanel /></div>}
       <Toaster position="top-right" />
     </div>

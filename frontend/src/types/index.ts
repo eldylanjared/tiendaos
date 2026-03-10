@@ -17,7 +17,7 @@ export interface VolumePromo {
   id: string;
   product_id: string;
   min_units: number;
-  promo_price: number;
+  promo_price: number; // bundle total price (e.g. 6 for $55 → promo_price = 55)
 }
 
 export interface Product {
@@ -141,6 +141,7 @@ export interface PriceCheckResult {
   image_url: string;
   sell_by_weight: boolean;
   pack: { barcode: string; units: number; pack_price: number } | null;
+  volume_promos?: { min_units: number; bundle_price: number; unit_price: number }[];
 }
 
 // Reports
@@ -215,6 +216,10 @@ export interface InventoryItem {
 // Finance
 export interface FinanceEntry {
   id: string;
+  user_id: string;
+  assigned_to: string | null;
+  user_name: string;
+  assigned_name: string;
   entry_type: "income" | "expense";
   category: string;
   amount: number;
@@ -222,6 +227,12 @@ export interface FinanceEntry {
   image_path: string;
   date: string;
   created_at: string;
+}
+
+export interface FinanceEmployee {
+  id: string;
+  full_name: string;
+  role: string;
 }
 
 export interface FinanceSummary {

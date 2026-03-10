@@ -11,6 +11,7 @@ class FinanceEntry(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     store_id = Column(String(36), ForeignKey("stores.id"), nullable=False)
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    assigned_to = Column(String(36), ForeignKey("users.id"), nullable=True)  # employee this entry belongs to
     entry_type = Column(String(20), nullable=False)  # "income" or "expense"
     category = Column(String(50), nullable=False)
     amount = Column(Float, nullable=False)
