@@ -218,7 +218,7 @@ def list_products(
     search: str = Query("", description="Search by name or barcode"),
     category_id: str | None = Query(None),
     active_only: bool = Query(True),
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, le=5000),
     offset: int = Query(0),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),

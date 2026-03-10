@@ -58,7 +58,7 @@ export default function ProductManager() {
 
   async function loadProducts() {
     try {
-      const results = await searchProducts(search, 100);
+      const results = await searchProducts(search, 5000);
       setProducts(results);
     } catch { /* ignore */ }
   }
