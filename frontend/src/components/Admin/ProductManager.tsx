@@ -50,9 +50,12 @@ export default function ProductManager() {
   const [showColPicker, setShowColPicker] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50); // 0 = show all
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    setPage(0);
     loadProducts();
   }, [search]);
 
@@ -156,6 +159,11 @@ export default function ProductManager() {
     }
   });
 
+  const totalPages = pageSize > 0 ? Math.ceil(sortedProducts.length / pageSize) : 1;
+  const pagedProducts = pageSize > 0
+    ? sortedProducts.slice(page * pageSize, (page + 1) * pageSize)
+    : sortedProducts;
+
   const show = (k: ColKey) => visibleCols.has(k);
 
   return (
@@ -214,6 +222,44 @@ export default function ProductManager() {
         </div>
       </div>
 
+      {/* Pagination bar */}
+      <div style={styles.paginationBar}>
+        <span style={styles.totalCount}>{sortedProducts.length} productos</span>
+        <div style={styles.pageSizeWrap}>
+          <span style={styles.pageSizeLabel}>Mostrar:</span>
+          {[50, 100, 0].map((size) => (
+            <button
+              key={size}
+              style={pageSize === size ? { ...styles.pageSizeBtn, ...styles.pageSizeBtnActive } : styles.pageSizeBtn}
+              onClick={() => { setPageSize(size); setPage(0); }}
+            >
+              {size === 0 ? "Todos" : size}
+            </button>
+          ))}
+        </div>
+        {pageSize > 0 && totalPages > 1 && (
+          <div style={styles.pageNav}>
+            <button
+              style={styles.pageBtn}
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              &lt; Anterior
+            </button>
+            <span style={styles.pageInfo}>
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              style={styles.pageBtn}
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Siguiente &gt;
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Table */}
       <div style={styles.tableWrap}>
         <table style={styles.table}>
@@ -233,7 +279,7 @@ export default function ProductManager() {
             </tr>
           </thead>
           <tbody>
-            {sortedProducts.map((p) => (
+            {pagedProducts.map((p) => (
               <tr key={p.id} style={styles.tr} onClick={() => setSelected(p)}>
                 <td style={styles.td}>
                   <div style={styles.nameCell}>
@@ -542,5 +588,63 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "center",
     color: "#94a3b8",
     padding: 40,
+  },
+  paginationBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 8,
+    flexWrap: "wrap",
+  },
+  totalCount: {
+    fontSize: 13,
+    color: "#64748b",
+    fontWeight: 500,
+  },
+  pageSizeWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+  },
+  pageSizeLabel: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginRight: 2,
+  },
+  pageSizeBtn: {
+    padding: "4px 10px",
+    borderRadius: 6,
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#475569",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 500,
+  },
+  pageSizeBtnActive: {
+    background: "#2563eb",
+    color: "#fff",
+    borderColor: "#2563eb",
+  },
+  pageNav: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: "auto",
+  },
+  pageBtn: {
+    padding: "4px 12px",
+    borderRadius: 6,
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#475569",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 500,
+  },
+  pageInfo: {
+    fontSize: 13,
+    color: "#334155",
+    fontWeight: 600,
   },
 };
