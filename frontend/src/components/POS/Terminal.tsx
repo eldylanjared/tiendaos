@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import ProductGrid from "@/components/Products/ProductGrid";
 import Cart from "@/components/POS/Cart";
 import PaymentModal from "@/components/POS/PaymentModal";
@@ -6,7 +6,7 @@ import Receipt from "@/components/POS/Receipt";
 import WeightInputModal from "@/components/POS/WeightInputModal";
 import { useCart } from "@/hooks/useCart";
 import { useBarcode } from "@/hooks/useBarcode";
-import { getByBarcode } from "@/services/api";
+import { getByBarcode, searchProducts } from "@/services/api";
 import type { Product, Sale, BarcodeLookupResult } from "@/types";
 import toast from "react-hot-toast";
 
@@ -20,6 +20,13 @@ export default function Terminal({ storeName }: Props) {
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [weightProduct, setWeightProduct] = useState<Product | null>(null);
   const [showAllProducts, setShowAllProducts] = useState(false);
+
+  // Shared products state so starring in "Todos" updates "Favoritos" instantly
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    searchProducts("", 100).then(setProducts).catch(() => {});
+  }, []);
 
   const handleBarcodeScan = useCallback(
     async (barcode: string) => {
@@ -92,9 +99,10 @@ export default function Terminal({ storeName }: Props) {
           </button>
         </div>
         <ProductGrid
-          key={showAllProducts ? "all" : "fav"}
           onSelect={handleSelectProduct}
           favoritesOnly={!showAllProducts}
+          products={products}
+          onProductsChange={setProducts}
         />
       </div>
       <div style={styles.cartPanel}>
@@ -150,7 +158,7 @@ const styles: Record<string, React.CSSProperties> = {
   panelHeader: {
     display: "flex",
     gap: 0,
-    padding: "8px 12px 0",
+    padding: "6px 10px 0",
     borderBottom: "1px solid #e2e8f0",
   },
   viewBtn: {
