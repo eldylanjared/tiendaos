@@ -19,6 +19,7 @@ class FinanceEntry(Base):
     image_path = Column(String(500), default="")  # relative path to uploaded image
     date = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class VendorMapping(Base):

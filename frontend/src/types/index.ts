@@ -227,6 +227,7 @@ export interface FinanceEntry {
   image_path: string;
   date: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface FinanceEmployee {

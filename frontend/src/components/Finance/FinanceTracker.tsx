@@ -24,6 +24,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   devolucion: "Devolucion",
 };
 
+/** Format number with commas for thousands and dot for cents: 1,234,567.89 */
+function fmt(n: number): string {
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 type Tab = "list" | "add";
 
 interface Props {
@@ -42,7 +47,12 @@ export default function FinanceTracker({ user }: Props) {
   const [filterEmployee, setFilterEmployee] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split("T")[0];
+  // Toggle extra columns
+  const [showCreator, setShowCreator] = useState(false);
+  const [showDate, setShowDate] = useState(true);
+  const [showUpdated, setShowUpdated] = useState(false);
+  const [showDescription, setShowDescription] = useState(true);
+
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
 
@@ -92,7 +102,6 @@ export default function FinanceTracker({ user }: Props) {
     reader.onload = (ev) => setImagePreview(ev.target?.result as string);
     reader.readAsDataURL(file);
 
-    // Auto-scan the receipt
     setScanning(true);
     try {
       const result = await scanReceipt(file);
@@ -189,6 +198,13 @@ export default function FinanceTracker({ user }: Props) {
     ? (entryType === "expense" ? categories.expense : categories.income)
     : [];
 
+  function formatUpdatedAt(iso: string): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })
+      + " " + d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  }
+
   return (
     <div style={s.container}>
       {/* Image preview modal */}
@@ -219,19 +235,19 @@ export default function FinanceTracker({ user }: Props) {
               <div style={{ ...s.summaryCard, borderTopColor: "#16a34a" }}>
                 <span style={s.summaryLabel}>Ingresos</span>
                 <span style={{ ...s.summaryValue, color: "#16a34a" }}>
-                  ${summary.total_income.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  ${fmt(summary.total_income)}
                 </span>
               </div>
               <div style={{ ...s.summaryCard, borderTopColor: "#dc2626" }}>
                 <span style={s.summaryLabel}>Gastos</span>
                 <span style={{ ...s.summaryValue, color: "#dc2626" }}>
-                  ${summary.total_expenses.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  ${fmt(summary.total_expenses)}
                 </span>
               </div>
               <div style={{ ...s.summaryCard, borderTopColor: summary.balance >= 0 ? "#2563eb" : "#dc2626" }}>
                 <span style={s.summaryLabel}>Balance</span>
                 <span style={{ ...s.summaryValue, color: summary.balance >= 0 ? "#2563eb" : "#dc2626" }}>
-                  ${summary.balance.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  ${fmt(summary.balance)}
                 </span>
               </div>
             </div>
@@ -246,7 +262,7 @@ export default function FinanceTracker({ user }: Props) {
                   {summary.expense_categories.map((c) => (
                     <div key={c.category} style={s.breakdownItem}>
                       <span style={s.breakdownCat}>{CATEGORY_LABELS[c.category] || c.category}</span>
-                      <span style={s.breakdownAmt}>${c.amount.toFixed(2)}</span>
+                      <span style={s.breakdownAmt}>${fmt(c.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -257,7 +273,7 @@ export default function FinanceTracker({ user }: Props) {
                   {summary.income_categories.map((c) => (
                     <div key={c.category} style={s.breakdownItem}>
                       <span style={s.breakdownCat}>{CATEGORY_LABELS[c.category] || c.category}</span>
-                      <span style={s.breakdownAmt}>${c.amount.toFixed(2)}</span>
+                      <span style={s.breakdownAmt}>${fmt(c.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -289,6 +305,28 @@ export default function FinanceTracker({ user }: Props) {
             )}
           </div>
 
+          {/* Column toggles */}
+          <div style={s.toggleRow}>
+            <label style={s.toggleLabel}>
+              <input type="checkbox" checked={showDate} onChange={(e) => setShowDate(e.target.checked)} />
+              Fecha
+            </label>
+            <label style={s.toggleLabel}>
+              <input type="checkbox" checked={showDescription} onChange={(e) => setShowDescription(e.target.checked)} />
+              Descripcion
+            </label>
+            <label style={s.toggleLabel}>
+              <input type="checkbox" checked={showUpdated} onChange={(e) => setShowUpdated(e.target.checked)} />
+              Ultima modificacion
+            </label>
+            {isAdminOrManager && (
+              <label style={s.toggleLabel}>
+                <input type="checkbox" checked={showCreator} onChange={(e) => setShowCreator(e.target.checked)} />
+                Creado por
+              </label>
+            )}
+          </div>
+
           {/* Entry list */}
           <div style={s.list}>
             {entries.map((entry) => (
@@ -303,15 +341,18 @@ export default function FinanceTracker({ user }: Props) {
                       {entry.entry_type === "income" ? "INGRESO" : "GASTO"}
                     </span>
                     <span style={s.entryCat}>{CATEGORY_LABELS[entry.category] || entry.category}</span>
-                  </div>
-                  {entry.description && <span style={s.entryDesc}>{entry.description}</span>}
-                  <div style={s.entryMeta}>
-                    <span style={s.entryDate}>{entry.date}</span>
                     {entry.assigned_name && (
                       <span style={s.assignedBadge}>{entry.assigned_name}</span>
                     )}
-                    {!entry.assigned_name && isAdminOrManager && entry.user_name && (
+                  </div>
+                  {showDescription && entry.description && <span style={s.entryDesc}>{entry.description}</span>}
+                  <div style={s.entryMeta}>
+                    {showDate && <span style={s.entryDate}>{entry.date}</span>}
+                    {showCreator && isAdminOrManager && entry.user_name && (
                       <span style={s.creatorLabel}>por {entry.user_name}</span>
+                    )}
+                    {showUpdated && entry.updated_at && (
+                      <span style={s.updatedLabel}>mod: {formatUpdatedAt(entry.updated_at)}</span>
                     )}
                   </div>
                 </div>
@@ -320,7 +361,7 @@ export default function FinanceTracker({ user }: Props) {
                     ...s.entryAmount,
                     color: entry.entry_type === "income" ? "#16a34a" : "#dc2626",
                   }}>
-                    {entry.entry_type === "income" ? "+" : "-"}${entry.amount.toFixed(2)}
+                    {entry.entry_type === "income" ? "+" : "-"}${fmt(entry.amount)}
                   </span>
                   <div style={s.entryActions}>
                     {entry.image_path && (
@@ -525,9 +566,17 @@ const s: Record<string, React.CSSProperties> = {
   breakdownItem: { display: "flex", justifyContent: "space-between", fontSize: 12 },
   breakdownCat: { color: "#64748b" },
   breakdownAmt: { fontWeight: 600, color: "#0f172a" },
-  filters: { display: "flex", gap: 6, alignItems: "center", marginBottom: 12, flexWrap: "wrap" },
+  filters: { display: "flex", gap: 6, alignItems: "center", marginBottom: 8, flexWrap: "wrap" },
   dateInput: { padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, flex: 1, minWidth: 110 },
   select: { padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13 },
+  toggleRow: {
+    display: "flex", gap: 12, alignItems: "center", marginBottom: 12,
+    flexWrap: "wrap", padding: "6px 0",
+  },
+  toggleLabel: {
+    display: "flex", alignItems: "center", gap: 4,
+    fontSize: 12, color: "#64748b", cursor: "pointer", userSelect: "none",
+  },
   list: { display: "flex", flexDirection: "column", gap: 6 },
   entryRow: {
     display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -539,13 +588,14 @@ const s: Record<string, React.CSSProperties> = {
   typeBadge: { fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4 },
   entryCat: { fontSize: 13, fontWeight: 600, color: "#0f172a" },
   entryDesc: { fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  entryMeta: { display: "flex", alignItems: "center", gap: 6 },
+  entryMeta: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
   entryDate: { fontSize: 11, color: "#94a3b8" },
   assignedBadge: {
     fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 4,
     background: "#dbeafe", color: "#1e40af",
   },
   creatorLabel: { fontSize: 10, color: "#94a3b8" },
+  updatedLabel: { fontSize: 10, color: "#a78bfa", fontStyle: "italic" },
   entryRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 },
   entryAmount: { fontSize: 16, fontWeight: 700 },
   entryActions: { display: "flex", gap: 4 },

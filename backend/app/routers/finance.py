@@ -24,7 +24,7 @@ EXPENSE_CATEGORIES = [
     "mantenimiento", "impuestos", "publicidad", "varios",
 ]
 INCOME_CATEGORIES = [
-    "ventas_efectivo", "ventas_tarjeta", "otros_ingresos", "prestamo", "devolucion",
+    "ventas_efectivo", "ventas_tarjeta", "nomina", "otros_ingresos", "prestamo", "devolucion",
 ]
 
 
@@ -97,6 +97,23 @@ async def create_entry(
         date=entry_date,
     )
     db.add(entry)
+
+    # When paying nomina (expense for the store), auto-create an income entry for the employee
+    if category == "nomina" and entry_type == "expense" and resolved_assigned_to:
+        emp = db.query(User).filter(User.id == resolved_assigned_to).first()
+        emp_name = emp.full_name if emp else "Empleado"
+        income_entry = FinanceEntry(
+            store_id=settings.store_id,
+            user_id=current_user.id,
+            assigned_to=resolved_assigned_to,
+            entry_type="income",
+            category="nomina",
+            amount=amount,
+            description=f"Pago de nomina — {emp_name}",
+            date=entry_date,
+        )
+        db.add(income_entry)
+
     db.commit()
     db.refresh(entry)
 
@@ -300,4 +317,5 @@ def _entry_to_dict(entry: FinanceEntry, names: dict[str, str] | None = None) -> 
         "image_path": entry.image_path,
         "date": entry.date.strftime("%Y-%m-%d") if entry.date else "",
         "created_at": entry.created_at.isoformat() if entry.created_at else "",
+        "updated_at": entry.updated_at.isoformat() if entry.updated_at else "",
     }
