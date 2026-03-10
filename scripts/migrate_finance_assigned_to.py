@@ -42,6 +42,7 @@ def migrate(db_path: str):
         )
 
     add_column_if_missing(cursor, "finance_entries", "is_personal", "BOOLEAN DEFAULT 0")
+    add_column_if_missing(cursor, "finance_entries", "linked_entry_id", "VARCHAR(36)")
     # Mark existing nomina income entries as personal
     cursor.execute(
         "UPDATE finance_entries SET is_personal = 1 "

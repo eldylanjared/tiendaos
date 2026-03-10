@@ -18,6 +18,7 @@ class FinanceEntry(Base):
     description = Column(Text, default="")
     image_path = Column(String(500), default="")  # relative path to uploaded image
     is_personal = Column(Boolean, default=False)  # True = employee-only entry (e.g. nomina income)
+    linked_entry_id = Column(String(36), nullable=True)  # links nomina expense <-> income pair
     date = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

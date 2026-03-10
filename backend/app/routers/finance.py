@@ -98,6 +98,8 @@ async def create_entry(
     )
     db.add(entry)
 
+    db.flush()  # get entry.id before creating linked entry
+
     # When paying nomina (expense for the store), auto-create an income entry for the employee
     if category == "nomina" and entry_type == "expense" and resolved_assigned_to:
         emp = db.query(User).filter(User.id == resolved_assigned_to).first()
@@ -112,8 +114,11 @@ async def create_entry(
             description=f"Pago de nomina — {emp_name}",
             date=entry_date,
             is_personal=True,
+            linked_entry_id=entry.id,
         )
         db.add(income_entry)
+        db.flush()
+        entry.linked_entry_id = income_entry.id
 
     db.commit()
     db.refresh(entry)
@@ -305,6 +310,16 @@ def delete_entry(
         filepath = os.path.join(UPLOAD_DIR, entry.image_path)
         if os.path.exists(filepath):
             os.remove(filepath)
+
+    # Delete linked entry (nomina expense <-> income pair)
+    if entry.linked_entry_id:
+        linked = db.query(FinanceEntry).filter(FinanceEntry.id == entry.linked_entry_id).first()
+        if linked:
+            if linked.image_path:
+                lpath = os.path.join(UPLOAD_DIR, linked.image_path)
+                if os.path.exists(lpath):
+                    os.remove(lpath)
+            db.delete(linked)
 
     db.delete(entry)
     db.commit()
