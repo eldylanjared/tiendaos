@@ -214,6 +214,12 @@ export async function importProductsCsv(file: File): Promise<{ created: number; 
   return res.json();
 }
 
+export function toggleFavorite(productId: string) {
+  return request<{ id: string; is_favorite: boolean }>(`/products/${productId}/toggle-favorite`, {
+    method: "POST",
+  });
+}
+
 export function addVolumePromo(productId: string, min_units: number, promo_price: number) {
   return request(`/products/${productId}/promos`, {
     method: "POST",

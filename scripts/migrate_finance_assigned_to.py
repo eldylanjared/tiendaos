@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Migration: Add assigned_to and updated_at columns to finance_entries table.
-Run this on existing databases. New databases get the columns via create_all().
+Migration: Add new columns to existing databases.
+New databases get these columns via create_all().
 
 Usage:
     python scripts/migrate_finance_assigned_to.py [path_to_db]
@@ -12,6 +12,19 @@ import sqlite3
 import sys
 import os
 
+
+def add_column_if_missing(cursor, table, column, definition):
+    cursor.execute(f"PRAGMA table_info({table})")
+    columns = [row[1] for row in cursor.fetchall()]
+    if column not in columns:
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        print(f"  Added '{column}' to {table}.")
+        return True
+    else:
+        print(f"  Column '{column}' already exists in {table}.")
+        return False
+
+
 def migrate(db_path: str):
     if not os.path.exists(db_path):
         print(f"Database not found: {db_path}")
@@ -20,32 +33,21 @@ def migrate(db_path: str):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # Check existing columns
-    cursor.execute("PRAGMA table_info(finance_entries)")
-    columns = [row[1] for row in cursor.fetchall()]
-
-    if "assigned_to" not in columns:
-        cursor.execute(
-            "ALTER TABLE finance_entries ADD COLUMN assigned_to VARCHAR(36) REFERENCES users(id)"
-        )
-        print("Added 'assigned_to' column.")
-    else:
-        print("Column 'assigned_to' already exists.")
-
-    if "updated_at" not in columns:
-        cursor.execute(
-            "ALTER TABLE finance_entries ADD COLUMN updated_at DATETIME"
-        )
-        # Backfill with created_at values
+    print("Migrating finance_entries...")
+    add_column_if_missing(cursor, "finance_entries", "assigned_to",
+                          "VARCHAR(36) REFERENCES users(id)")
+    if add_column_if_missing(cursor, "finance_entries", "updated_at", "DATETIME"):
         cursor.execute(
             "UPDATE finance_entries SET updated_at = created_at WHERE updated_at IS NULL"
         )
-        print("Added 'updated_at' column.")
-    else:
-        print("Column 'updated_at' already exists.")
+
+    print("Migrating products...")
+    add_column_if_missing(cursor, "products", "is_favorite", "BOOLEAN DEFAULT 0")
 
     conn.commit()
     conn.close()
+    print("Done.")
+
 
 if __name__ == "__main__":
     db_path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(

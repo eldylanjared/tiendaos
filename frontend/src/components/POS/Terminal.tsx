@@ -19,6 +19,7 @@ export default function Terminal({ storeName }: Props) {
   const [showPayment, setShowPayment] = useState(false);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [weightProduct, setWeightProduct] = useState<Product | null>(null);
+  const [showAllProducts, setShowAllProducts] = useState(false);
 
   const handleBarcodeScan = useCallback(
     async (barcode: string) => {
@@ -76,7 +77,25 @@ export default function Terminal({ storeName }: Props) {
   return (
     <div style={styles.container}>
       <div style={styles.productsPanel}>
-        <ProductGrid onSelect={handleSelectProduct} />
+        <div style={styles.panelHeader}>
+          <button
+            style={!showAllProducts ? { ...styles.viewBtn, ...styles.viewBtnActive } : styles.viewBtn}
+            onClick={() => setShowAllProducts(false)}
+          >
+            Favoritos
+          </button>
+          <button
+            style={showAllProducts ? { ...styles.viewBtn, ...styles.viewBtnActive } : styles.viewBtn}
+            onClick={() => setShowAllProducts(true)}
+          >
+            Todos
+          </button>
+        </div>
+        <ProductGrid
+          key={showAllProducts ? "all" : "fav"}
+          onSelect={handleSelectProduct}
+          favoritesOnly={!showAllProducts}
+        />
       </div>
       <div style={styles.cartPanel}>
         <Cart
@@ -121,6 +140,35 @@ export default function Terminal({ storeName }: Props) {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { display: "flex", flex: 1, overflow: "hidden" },
-  productsPanel: { flex: 1, overflow: "hidden", background: "#f8fafc" },
-  cartPanel: { width: 550, flexShrink: 0 },
+  productsPanel: {
+    flex: 1,
+    overflow: "hidden",
+    background: "#f8fafc",
+    display: "flex",
+    flexDirection: "column",
+  },
+  panelHeader: {
+    display: "flex",
+    gap: 0,
+    padding: "8px 12px 0",
+    borderBottom: "1px solid #e2e8f0",
+  },
+  viewBtn: {
+    flex: 1,
+    padding: "8px 0",
+    border: "none",
+    borderBottom: "2px solid transparent",
+    background: "transparent",
+    color: "#64748b",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "center",
+  },
+  viewBtnActive: {
+    color: "#0f172a",
+    borderBottomColor: "#2563eb",
+    fontWeight: 600,
+  },
+  cartPanel: { flex: 1, flexShrink: 0, maxWidth: "50%" },
 };

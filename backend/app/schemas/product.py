@@ -79,6 +79,7 @@ class ProductBase(BaseModel):
     cost: float = 0.0
     min_stock: int = 5
     image_url: str = ""
+    is_favorite: bool = False
     sell_by_weight: bool = False
 
 
@@ -97,6 +98,7 @@ class ProductUpdate(BaseModel):
     min_stock: int | None = None
     image_url: str | None = None
     is_active: bool | None = None
+    is_favorite: bool | None = None
     sell_by_weight: bool | None = None
 
 

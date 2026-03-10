@@ -33,6 +33,7 @@ class Product(Base):
     min_stock: Mapped[int] = mapped_column(Integer, default=5)
     image_url: Mapped[str] = mapped_column(String(500), default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     sell_by_weight: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { searchProducts, getCategories } from "@/services/api";
+import { searchProducts, getCategories, toggleFavorite } from "@/services/api";
 import type { Product, Category } from "@/types";
+import toast from "react-hot-toast";
 
 interface Props {
   onSelect: (product: Product) => void;
+  favoritesOnly?: boolean;
 }
 
-export default function ProductGrid({ onSelect }: Props) {
+export default function ProductGrid({ onSelect, favoritesOnly }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export default function ProductGrid({ onSelect }: Props) {
 
   function loadProducts(q: string) {
     setLoading(true);
-    searchProducts(q, 60)
+    searchProducts(q, 100)
       .then(setProducts)
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -33,27 +34,47 @@ export default function ProductGrid({ onSelect }: Props) {
     debounceRef.current = setTimeout(() => loadProducts(val), 250);
   }
 
+  async function handleToggleFavorite(e: React.MouseEvent, product: Product) {
+    e.stopPropagation();
+    try {
+      const result = await toggleFavorite(product.id);
+      setProducts((prev) =>
+        prev.map((p) => p.id === product.id ? { ...p, is_favorite: result.is_favorite } : p)
+      );
+      toast.success(result.is_favorite ? `${product.name} agregado a favoritos` : `${product.name} quitado de favoritos`);
+    } catch {
+      toast.error("Error al cambiar favorito");
+    }
+  }
+
+  const displayProducts = favoritesOnly
+    ? products.filter((p) => p.is_favorite)
+    : products;
+
   return (
     <div style={styles.container}>
       <div style={styles.searchRow}>
         <input
-          ref={searchRef}
           style={styles.searchInput}
-          placeholder="Buscar producto o código de barras..."
+          placeholder={favoritesOnly ? "Buscar en favoritos..." : "Buscar producto o codigo de barras..."}
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           data-barcode="true"
         />
         {search && (
           <button style={styles.clearBtn} onClick={() => { setSearch(""); loadProducts(""); }}>
-            ✕
+            X
           </button>
         )}
       </div>
       <div style={styles.grid}>
-        {loading && products.length === 0 && <p style={styles.msg}>Cargando...</p>}
-        {!loading && products.length === 0 && <p style={styles.msg}>No se encontraron productos</p>}
-        {products.map((p) => {
+        {loading && displayProducts.length === 0 && <p style={styles.msg}>Cargando...</p>}
+        {!loading && displayProducts.length === 0 && (
+          <p style={styles.msg}>
+            {favoritesOnly ? "No hay favoritos — agrega productos con la estrella" : "No se encontraron productos"}
+          </p>
+        )}
+        {displayProducts.map((p) => {
           const cat = categories.find((c) => c.id === p.category_id);
           return (
             <button key={p.id} style={styles.card} onClick={() => onSelect(p)}>
@@ -68,8 +89,17 @@ export default function ProductGrid({ onSelect }: Props) {
                   )}
                 </div>
                 <div style={styles.cardInfo}>
-                  <div style={{ ...styles.catBadge, background: cat?.color || "#94a3b8" }}>
-                    {cat?.name || "General"}
+                  <div style={styles.cardTopRow}>
+                    <div style={{ ...styles.catBadge, background: cat?.color || "#94a3b8" }}>
+                      {cat?.name || "General"}
+                    </div>
+                    <span
+                      style={p.is_favorite ? styles.starActive : styles.star}
+                      onClick={(e) => handleToggleFavorite(e, p)}
+                      title={p.is_favorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+                    >
+                      {p.is_favorite ? "\u2605" : "\u2606"}
+                    </span>
                   </div>
                   <div style={styles.productName}>{p.name}</div>
                   <div style={styles.priceRow}>
@@ -162,14 +192,32 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     minWidth: 0,
   },
+  cardTopRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
   catBadge: {
     fontSize: 10,
     fontWeight: 600,
     color: "#fff",
     padding: "2px 6px",
     borderRadius: 4,
-    alignSelf: "flex-start",
-    marginBottom: 4,
+  },
+  star: {
+    fontSize: 16,
+    cursor: "pointer",
+    color: "#cbd5e1",
+    lineHeight: 1,
+    padding: "2px",
+  },
+  starActive: {
+    fontSize: 16,
+    cursor: "pointer",
+    color: "#f59e0b",
+    lineHeight: 1,
+    padding: "2px",
   },
   productName: { fontSize: 12, fontWeight: 500, color: "#1e293b", flex: 1, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis" as const },
   priceRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 },

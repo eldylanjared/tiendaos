@@ -32,6 +32,7 @@ export interface Product {
   min_stock: number;
   image_url: string;
   is_active: boolean;
+  is_favorite: boolean;
   sell_by_weight: boolean;
   created_at: string;
   updated_at: string;

@@ -317,6 +317,20 @@ def update_product(
 
 # --- Stock Adjustments ---
 
+@router.post("/{product_id}/toggle-favorite")
+def toggle_favorite(
+    product_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    product.is_favorite = not product.is_favorite
+    db.commit()
+    return {"id": product.id, "is_favorite": product.is_favorite}
+
+
 @router.post("/{product_id}/adjust-stock", response_model=StockAdjustmentResponse)
 def adjust_stock(
     product_id: str,
