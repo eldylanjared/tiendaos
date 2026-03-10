@@ -9,6 +9,7 @@ const COLUMNS = [
   { key: "cost", label: "Costo", default: false },
   { key: "stock", label: "Stock", default: true },
   { key: "category", label: "Categoria", default: false },
+  { key: "image", label: "Imagen", default: false },
   { key: "updated_at", label: "Ultima modificacion", default: false },
   { key: "created_at", label: "Fecha creacion", default: false },
   { key: "sell_by_weight", label: "Por peso", default: false },
@@ -16,6 +17,10 @@ const COLUMNS = [
 ] as const;
 
 type ColKey = (typeof COLUMNS)[number]["key"];
+
+// All sortable column keys (including the always-visible ones)
+type SortKey = "name" | "barcode" | ColKey;
+type SortDir = "asc" | "desc";
 
 function fmt(n: number) {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -43,6 +48,8 @@ export default function ProductManager() {
   const [importing, setImporting] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(loadVisibleCols);
   const [showColPicker, setShowColPicker] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -115,6 +122,40 @@ export default function ProductManager() {
     return <ProductForm product={selected} onSave={handleSaved} onCancel={() => setSelected(null)} />;
   }
 
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sortIndicator = (key: SortKey) =>
+    sortKey === key ? (sortDir === "asc" ? " \u25B2" : " \u25BC") : "";
+
+  const sortedProducts = [...products].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    switch (sortKey) {
+      case "name": return dir * a.name.localeCompare(b.name);
+      case "barcode": return dir * a.barcode.localeCompare(b.barcode);
+      case "price": return dir * (a.price - b.price);
+      case "cost": return dir * (a.cost - b.cost);
+      case "stock": return dir * (a.stock - b.stock);
+      case "category": {
+        const ca = a.category?.name || "";
+        const cb = b.category?.name || "";
+        return dir * ca.localeCompare(cb);
+      }
+      case "image": return dir * ((a.image_url ? 1 : 0) - (b.image_url ? 1 : 0));
+      case "packs": return dir * (a.barcodes.length - b.barcodes.length);
+      case "sell_by_weight": return dir * ((a.sell_by_weight ? 1 : 0) - (b.sell_by_weight ? 1 : 0));
+      case "updated_at": return dir * (a.updated_at || "").localeCompare(b.updated_at || "");
+      case "created_at": return dir * (a.created_at || "").localeCompare(b.created_at || "");
+      default: return 0;
+    }
+  });
+
   const show = (k: ColKey) => visibleCols.has(k);
 
   return (
@@ -178,20 +219,21 @@ export default function ProductManager() {
         <table style={styles.table}>
           <thead>
             <tr>
-              <th style={styles.th}>Producto</th>
-              <th style={styles.th}>Codigo</th>
-              {show("price") && <th style={{ ...styles.th, textAlign: "right" }}>Precio</th>}
-              {show("cost") && <th style={{ ...styles.th, textAlign: "right" }}>Costo</th>}
-              {show("stock") && <th style={{ ...styles.th, textAlign: "right" }}>Stock</th>}
-              {show("category") && <th style={styles.th}>Categoria</th>}
-              {show("packs") && <th style={{ ...styles.th, textAlign: "center" }}>Packs</th>}
-              {show("sell_by_weight") && <th style={{ ...styles.th, textAlign: "center" }}>Peso</th>}
-              {show("updated_at") && <th style={styles.th}>Modificado</th>}
-              {show("created_at") && <th style={styles.th}>Creado</th>}
+              <th style={styles.thSort} onClick={() => handleSort("name")}>Producto{sortIndicator("name")}</th>
+              <th style={styles.thSort} onClick={() => handleSort("barcode")}>Codigo{sortIndicator("barcode")}</th>
+              {show("price") && <th style={{ ...styles.thSort, textAlign: "right" }} onClick={() => handleSort("price")}>Precio{sortIndicator("price")}</th>}
+              {show("cost") && <th style={{ ...styles.thSort, textAlign: "right" }} onClick={() => handleSort("cost")}>Costo{sortIndicator("cost")}</th>}
+              {show("stock") && <th style={{ ...styles.thSort, textAlign: "right" }} onClick={() => handleSort("stock")}>Stock{sortIndicator("stock")}</th>}
+              {show("category") && <th style={styles.thSort} onClick={() => handleSort("category")}>Categoria{sortIndicator("category")}</th>}
+              {show("image") && <th style={{ ...styles.thSort, textAlign: "center" }} onClick={() => handleSort("image")}>Imagen{sortIndicator("image")}</th>}
+              {show("packs") && <th style={{ ...styles.thSort, textAlign: "center" }} onClick={() => handleSort("packs")}>Packs{sortIndicator("packs")}</th>}
+              {show("sell_by_weight") && <th style={{ ...styles.thSort, textAlign: "center" }} onClick={() => handleSort("sell_by_weight")}>Peso{sortIndicator("sell_by_weight")}</th>}
+              {show("updated_at") && <th style={styles.thSort} onClick={() => handleSort("updated_at")}>Modificado{sortIndicator("updated_at")}</th>}
+              {show("created_at") && <th style={styles.thSort} onClick={() => handleSort("created_at")}>Creado{sortIndicator("created_at")}</th>}
             </tr>
           </thead>
           <tbody>
-            {products.map((p) => (
+            {sortedProducts.map((p) => (
               <tr key={p.id} style={styles.tr} onClick={() => setSelected(p)}>
                 <td style={styles.td}>
                   <div style={styles.nameCell}>
@@ -239,6 +281,15 @@ export default function ProductManager() {
                       </span>
                     ) : (
                       <span style={{ color: "#cbd5e1" }}>—</span>
+                    )}
+                  </td>
+                )}
+                {show("image") && (
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    {p.image_url ? (
+                      <span style={styles.yesTag}>Si</span>
+                    ) : (
+                      <span style={styles.noTag}>No</span>
                     )}
                   </td>
                 )}
@@ -385,6 +436,20 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#f8fafc",
     whiteSpace: "nowrap",
   },
+  thSort: {
+    padding: "10px 12px",
+    textAlign: "left",
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    borderBottom: "2px solid #e2e8f0",
+    background: "#f8fafc",
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+    userSelect: "none",
+  },
   tr: {
     cursor: "pointer",
     borderBottom: "1px solid #f1f5f9",
@@ -454,6 +519,22 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     background: "#dbeafe",
     color: "#1e40af",
+    padding: "2px 6px",
+    borderRadius: 4,
+  },
+  yesTag: {
+    fontSize: 10,
+    fontWeight: 700,
+    background: "#dcfce7",
+    color: "#16a34a",
+    padding: "2px 6px",
+    borderRadius: 4,
+  },
+  noTag: {
+    fontSize: 10,
+    fontWeight: 700,
+    background: "#fef2f2",
+    color: "#dc2626",
     padding: "2px 6px",
     borderRadius: 4,
   },
