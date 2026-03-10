@@ -134,9 +134,13 @@ def _apply_user_filter(q, current_user: User, user_id: str | None):
             # Business view — exclude personal-only entries (e.g. nomina income for employees)
             q = q.filter(or_(FinanceEntry.is_personal == False, FinanceEntry.is_personal == None))
     else:
-        # Cashier: only see entries they created or assigned to them
+        # Cashier: see entries they created + personal entries assigned to them (e.g. nomina income)
+        # Exclude business entries that happen to be assigned to them (e.g. nomina expense)
         q = q.filter(
-            or_(FinanceEntry.user_id == current_user.id, FinanceEntry.assigned_to == current_user.id)
+            or_(
+                FinanceEntry.user_id == current_user.id,
+                (FinanceEntry.assigned_to == current_user.id) & (FinanceEntry.is_personal == True),
+            )
         )
     return q
 
