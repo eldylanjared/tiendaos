@@ -17,12 +17,18 @@ function injectGridStyles() {
   gridStyleInjected = true;
   const s = document.createElement("style");
   s.textContent = `
+    /* Opt entire card tree out of browser forced dark mode */
+    .pg-card, .pg-card * {
+      forced-color-adjust: none !important;
+      -webkit-forced-color-adjust: none !important;
+      color-scheme: light only !important;
+    }
     .pg-card {
       position: relative;
       padding: 0;
       border-radius: 10px;
       border: 1px solid #e2e8f0 !important;
-      background: #ffffff !important;
+      background-color: #ffffff !important;
       color: #000000 !important;
       cursor: pointer;
       text-align: left;
@@ -36,24 +42,24 @@ function injectGridStyles() {
       font-size: 18px; cursor: pointer; line-height: 1;
       padding: 2px 4px; z-index: 2; border-radius: 4px;
       color: #cbd5e1 !important;
-      background: rgba(255,255,255,0.9) !important;
+      background-color: rgba(255,255,255,0.95) !important;
     }
     .pg-star.active { color: #f59e0b !important; }
     .pg-img-wrap {
       width: 100%; height: 90px;
       display: flex; align-items: center; justify-content: center;
-      background: #f8fafc !important;
+      background-color: #f8fafc !important;
       overflow: hidden;
     }
     .pg-img { width: 100%; height: 100%; object-fit: contain; }
     .pg-img-ph {
       font-size: 28px; font-weight: 700;
-      color: #cbd5e1 !important;
+      color: #94a3b8 !important;
     }
     .pg-info {
       display: flex; flex-direction: column;
       padding: 6px 8px 8px; gap: 3px; flex: 1;
-      background: #ffffff !important;
+      background-color: #ffffff !important;
     }
     .pg-cat {
       font-size: 9px; font-weight: 600;
@@ -70,6 +76,9 @@ function injectGridStyles() {
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
       overflow: hidden;
+      /* text shadow as fallback if color gets overridden */
+      text-shadow: 0 0 0 #1e293b;
+      -webkit-text-fill-color: #1e293b;
     }
     .pg-price-row {
       display: flex; justify-content: space-between;
@@ -78,20 +87,24 @@ function injectGridStyles() {
     .pg-price {
       font-size: 15px; font-weight: 700;
       color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a;
     }
     .pg-stock {
       font-size: 10px; font-weight: 600;
       padding: 1px 5px; border-radius: 4px;
-      background: #f1f5f9 !important;
+      background-color: #f1f5f9 !important;
     }
-    .pg-stock.low { color: #dc2626 !important; }
-    .pg-stock.ok { color: #16a34a !important; }
+    .pg-stock.low { color: #dc2626 !important; -webkit-text-fill-color: #dc2626; }
+    .pg-stock.ok { color: #16a34a !important; -webkit-text-fill-color: #16a34a; }
     .pg-search {
       width: 100%; padding: 8px 32px 8px 12px;
       border-radius: 8px; border: 1px solid #e2e8f0 !important;
       font-size: 13px; outline: none; box-sizing: border-box;
-      background: #ffffff !important;
+      background-color: #ffffff !important;
       color: #000000 !important;
+      -webkit-text-fill-color: #000000;
+      forced-color-adjust: none !important;
+      color-scheme: light only !important;
     }
     .pg-grid {
       display: grid;
