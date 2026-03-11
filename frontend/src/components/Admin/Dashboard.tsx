@@ -2,11 +2,31 @@ import { useState, useEffect } from "react";
 import { getDashboard } from "@/services/api";
 import type { DashboardData } from "@/types";
 
+let dashStyleInjected = false;
+function injectDashStyles() {
+  if (dashStyleInjected) return;
+  dashStyleInjected = true;
+  const el = document.createElement("style");
+  el.textContent = `
+    .dash-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .dash-grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 16px; }
+    @media (max-width: 800px) {
+      .dash-kpi-row { grid-template-columns: repeat(2, 1fr); }
+      .dash-grid2 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 500px) {
+      .dash-kpi-row { grid-template-columns: 1fr; }
+    }
+  `;
+  document.head.appendChild(el);
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    injectDashStyles();
     loadDashboard();
     const interval = setInterval(loadDashboard, 60000); // refresh every minute
     return () => clearInterval(interval);
@@ -31,7 +51,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div style={styles.kpiRow}>
+      <div className="dash-kpi-row">
         <KpiCard label="Ventas Hoy" value={`$${data.total_sales.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`}
           sub={salesChange ? `${Number(salesChange) >= 0 ? "+" : ""}${salesChange}% vs ayer` : "Sin datos de ayer"}
           subColor={salesChange && Number(salesChange) >= 0 ? "#16a34a" : "#dc2626"} />
@@ -41,7 +61,7 @@ export default function Dashboard() {
           subColor="#16a34a" />
       </div>
 
-      <div style={styles.grid2}>
+      <div className="dash-grid2">
         {/* Sales by hour */}
         <div style={styles.card}>
           <h4 style={styles.cardTitle}>Ventas por Hora</h4>

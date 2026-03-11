@@ -196,6 +196,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#fff",
     borderRadius: 8,
     border: "1px solid #e2e8f0",
+    flexWrap: "wrap" as const,
+    gap: 8,
   },
   editRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", width: "100%" },
   smallInput: {

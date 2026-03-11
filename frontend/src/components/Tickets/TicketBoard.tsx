@@ -63,6 +63,7 @@ export default function TicketBoard({ user }: Props) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    injectTicketStyles();
     loadTickets();
     getTicketEmployees().then(setEmployees).catch(() => {});
   }, []);
@@ -157,9 +158,9 @@ export default function TicketBoard({ user }: Props) {
   return (
     <div style={s.container}>
       {/* Header */}
-      <div style={s.header}>
+      <div className="tk-header">
         <h2 style={s.title}>Tickets</h2>
-        <div style={s.filters}>
+        <div className="tk-filters">
           <select style={s.filterSelect} value={filterAssigned} onChange={(e) => setFilterAssigned(e.target.value)}>
             <option value="">Todos</option>
             <option value={user.id}>Mis tickets</option>
@@ -176,11 +177,11 @@ export default function TicketBoard({ user }: Props) {
       </div>
 
       {/* Board columns */}
-      <div style={s.board}>
+      <div className="tk-board">
         {STATUSES.map((col) => {
           const colTickets = filtered.filter((t) => t.status === col.key);
           return (
-            <div key={col.key} style={s.column}>
+            <div key={col.key} className="tk-column">
               <div style={{ ...s.colHeader, borderTopColor: col.color }}>
                 <span style={s.colTitle}>{col.label}</span>
                 <span style={s.colCount}>{colTickets.length}</span>
@@ -225,7 +226,7 @@ export default function TicketBoard({ user }: Props) {
       {/* Create/Edit modal */}
       {showForm && (
         <div style={s.overlay} onClick={() => setShowForm(false)}>
-          <div style={s.modal} onClick={(e) => e.stopPropagation()}>
+          <div className="tk-modal" onClick={(e) => e.stopPropagation()}>
             <h3 style={s.modalTitle}>{editTicket ? "Editar Ticket" : "Nuevo Ticket"}</h3>
 
             <label style={s.label}>Titulo</label>
@@ -234,14 +235,14 @@ export default function TicketBoard({ user }: Props) {
             <label style={s.label}>Descripcion</label>
             <textarea style={s.textarea} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Detalles (opcional)" rows={3} />
 
-            <div style={s.formRow}>
-              <div style={s.formCol}>
+            <div className="tk-form-row">
+              <div className="tk-form-col">
                 <label style={s.label}>Prioridad</label>
                 <select style={s.input} value={priority} onChange={(e) => setPriority(e.target.value)}>
                   {PRIORITIES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
                 </select>
               </div>
-              <div style={s.formCol}>
+              <div className="tk-form-col">
                 <label style={s.label}>Fecha limite</label>
                 <input type="date" style={s.input} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
@@ -256,7 +257,7 @@ export default function TicketBoard({ user }: Props) {
             {editTicket && (
               <>
                 <label style={s.label}>Estado</label>
-                <div style={s.statusRow}>
+                <div className="tk-status-row">
                   {STATUSES.map((st) => (
                     <button
                       key={st.key}
@@ -278,7 +279,7 @@ export default function TicketBoard({ user }: Props) {
               </>
             )}
 
-            <div style={s.modalActions}>
+            <div className="tk-modal-actions">
               {editTicket && (isAdmin || editTicket.created_by === user.id) && (
                 <button style={s.deleteBtn} onClick={() => handleDelete(editTicket.id)}>Eliminar</button>
               )}
@@ -295,24 +296,63 @@ export default function TicketBoard({ user }: Props) {
   );
 }
 
+// Inject responsive CSS
+let ticketStyleInjected = false;
+function injectTicketStyles() {
+  if (ticketStyleInjected) return;
+  ticketStyleInjected = true;
+  const el = document.createElement("style");
+  el.textContent = `
+    .tk-board {
+      display: flex; gap: 12px; flex: 1; overflow: auto; padding-bottom: 12px;
+    }
+    .tk-column {
+      flex: 1; min-width: 220px; max-width: 320px;
+      display: flex; flex-direction: column; background: #f8fafc;
+      border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden;
+    }
+    .tk-modal {
+      background: #fff; border-radius: 14px; padding: 24px; width: 100%; max-width: 480px;
+      max-height: 90vh; overflow: auto; display: flex; flex-direction: column; gap: 10px;
+      margin: 0 12px;
+    }
+    .tk-form-row { display: flex; gap: 12px; }
+    .tk-form-col { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .tk-status-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tk-modal-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .tk-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+    .tk-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    @media (max-width: 800px) {
+      .tk-board { flex-direction: column; gap: 8px; }
+      .tk-column { min-width: 0; max-width: 100%; }
+    }
+    @media (max-width: 500px) {
+      .tk-modal { padding: 16px; margin: 0 8px; }
+      .tk-form-row { flex-direction: column; gap: 8px; }
+      .tk-status-row { flex-wrap: wrap; }
+      .tk-status-row > button { flex: none; padding: 8px 12px !important; }
+      .tk-modal-actions { flex-wrap: wrap; }
+      .tk-modal-actions > button { flex: 1; min-width: 0; }
+      .tk-header { flex-direction: column; align-items: flex-start; }
+      .tk-filters { width: 100%; }
+      .tk-filters > select, .tk-filters > button { flex: 1; }
+    }
+  `;
+  document.head.appendChild(el);
+}
+
 const s: Record<string, React.CSSProperties> = {
   container: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", padding: "0 12px" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", flexShrink: 0, flexWrap: "wrap", gap: 8 },
   title: { fontSize: 20, fontWeight: 700, color: "#0f172a", margin: 0 },
-  filters: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
   filterSelect: { padding: "6px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12, background: "#fff" },
   addBtn: {
     padding: "8px 16px", borderRadius: 8, border: "none",
     background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600,
+    whiteSpace: "nowrap",
   },
 
-  // Board
-  board: { display: "flex", gap: 12, flex: 1, overflow: "auto", paddingBottom: 12 },
-  column: {
-    flex: 1, minWidth: 220, maxWidth: 320,
-    display: "flex", flexDirection: "column", background: "#f8fafc", borderRadius: 10,
-    border: "1px solid #e2e8f0", overflow: "hidden",
-  },
+  // Column
   colHeader: {
     padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center",
     borderTop: "3px solid", background: "#fff",
@@ -344,32 +384,24 @@ const s: Record<string, React.CSSProperties> = {
   overlay: {
     position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
     background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center",
-    justifyContent: "center", zIndex: 1000,
-  },
-  modal: {
-    background: "#fff", borderRadius: 14, padding: 24, width: "100%", maxWidth: 480,
-    maxHeight: "90vh", overflow: "auto", display: "flex", flexDirection: "column", gap: 10,
+    justifyContent: "center", zIndex: 1000, padding: 0,
   },
   modalTitle: { fontSize: 18, fontWeight: 700, color: "#0f172a", margin: 0 },
   label: { fontSize: 12, fontWeight: 600, color: "#334155", margin: 0 },
   input: {
     padding: "10px 12px", borderRadius: 8, border: "1px solid #e2e8f0",
-    fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box",
+    fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" as const,
   },
   textarea: {
     padding: "10px 12px", borderRadius: 8, border: "1px solid #e2e8f0",
-    fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box", resize: "vertical",
+    fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" as const, resize: "vertical" as const,
     fontFamily: "inherit",
   },
-  formRow: { display: "flex", gap: 12 },
-  formCol: { flex: 1, display: "flex", flexDirection: "column", gap: 6 },
-  statusRow: { display: "flex", gap: 6 },
   statusBtn: {
     flex: 1, padding: "8px 4px", borderRadius: 6, border: "1px solid #e2e8f0",
     background: "#f8fafc", color: "#334155", cursor: "pointer", fontSize: 11, fontWeight: 600, textAlign: "center",
   },
-  metaInfo: { display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8", padding: "4px 0" },
-  modalActions: { display: "flex", gap: 8, marginTop: 8 },
+  metaInfo: { display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8", padding: "4px 0", flexWrap: "wrap" as const, gap: 4 },
   deleteBtn: {
     padding: "10px 16px", borderRadius: 8, border: "1px solid #dc2626",
     background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13, fontWeight: 600,

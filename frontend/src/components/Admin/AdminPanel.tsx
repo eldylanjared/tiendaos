@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Dashboard from "@/components/Admin/Dashboard";
 import Reports from "@/components/Admin/Reports";
 import ProductManager from "@/components/Admin/ProductManager";
@@ -20,9 +20,11 @@ const tabs: { key: Tab; label: string }[] = [
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
 
+  useEffect(() => { injectAdminStyles(); }, []);
+
   return (
     <div style={styles.container}>
-      <div style={styles.tabBar}>
+      <div className="ap-tabbar">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -43,6 +45,26 @@ export default function AdminPanel() {
       </div>
     </div>
   );
+}
+
+let adminStyleInjected = false;
+function injectAdminStyles() {
+  if (adminStyleInjected) return;
+  adminStyleInjected = true;
+  const el = document.createElement("style");
+  el.textContent = `
+    .ap-tabbar {
+      display: flex; gap: 0; border-bottom: 1px solid #e2e8f0;
+      background: #fff; padding: 0 16px; flex-shrink: 0;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+    }
+    .ap-tabbar::-webkit-scrollbar { display: none; }
+    @media (max-width: 600px) {
+      .ap-tabbar { padding: 0 8px; }
+      .ap-tabbar > button { padding: 10px 12px !important; font-size: 12px !important; white-space: nowrap; }
+    }
+  `;
+  document.head.appendChild(el);
 }
 
 const styles: Record<string, React.CSSProperties> = {

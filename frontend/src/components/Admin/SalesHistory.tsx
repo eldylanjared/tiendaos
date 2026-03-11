@@ -116,6 +116,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summaryCard: {
     display: "flex",
+    flexWrap: "wrap" as const,
     gap: 16,
     marginBottom: 16,
     padding: 16,
@@ -123,7 +124,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 10,
     border: "1px solid #e2e8f0",
   },
-  summaryItem: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
+  summaryItem: { display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 120 },
   summaryLabel: { fontSize: 12, color: "#64748b", fontWeight: 500 },
   summaryValue: { fontSize: 22, fontWeight: 700, color: "#0f172a" },
   list: { display: "flex", flexDirection: "column", gap: 4 },
@@ -139,8 +140,10 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     padding: "10px 14px",
     cursor: "pointer",
+    flexWrap: "wrap" as const,
+    gap: 8,
   },
-  saleInfo: { display: "flex", alignItems: "center", gap: 8 },
+  saleInfo: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const },
   saleTime: { fontSize: 13, fontWeight: 600, color: "#0f172a" },
   saleId: { fontSize: 11, color: "#94a3b8" },
   voidedTag: {
