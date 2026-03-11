@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" style="color-scheme: light;">
+<html lang="es" style="color-scheme: light only !important;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,8 +10,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      /* Force light mode — must be in <head> before any rendering */
+      :root { color-scheme: light only !important; }
+      html { background: #ffffff !important; color: #000 !important; }
+      body { background: #ffffff !important; color: #000 !important; }
+      /* Every element that browsers auto-dark-mode targets */
+      div, span, p, button, a, input, select, textarea, header, section,
+      table, th, td, tr, label, img, h1, h2, h3, h4 {
+        color-scheme: light only !important;
+      }
+    </style>
   </head>
-  <body style="background: #ffffff; color: #000000;">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
