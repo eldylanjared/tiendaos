@@ -1,0 +1,19 @@
+/* Force light mode globally — prevents browser dark mode from hiding content */
+:root {
+  color-scheme: light only !important;
+}
+
+html, body {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* Override browser dark mode on all interactive/content elements */
+input, button, select, textarea {
+  color-scheme: light !important;
+}
+
+/* Product cards must stay light */
+*, *::before, *::after {
+  --forced-bg: initial;
+}
