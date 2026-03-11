@@ -281,7 +281,7 @@ export default function ProductManager() {
           <tbody>
             {pagedProducts.map((p) => (
               <tr key={p.id} style={styles.tr} onClick={() => setSelected(p)}>
-                <td style={styles.td}>
+                <td style={styles.tdName}>
                   <div style={styles.nameCell}>
                     {p.image_url ? (
                       <img src={p.image_url} alt="" style={styles.thumb} />
@@ -505,6 +505,10 @@ const styles: Record<string, React.CSSProperties> = {
     verticalAlign: "middle",
     whiteSpace: "nowrap",
   },
+  tdName: {
+    padding: "8px 12px",
+    verticalAlign: "middle",
+  },
   nameCell: {
     display: "flex",
     alignItems: "center",
@@ -535,10 +539,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 500,
     color: "#0f172a",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    maxWidth: 280,
   },
   barcode: {
     fontSize: 12,

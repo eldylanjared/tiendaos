@@ -10,6 +10,51 @@ import { getByBarcode, searchProducts } from "@/services/api";
 import type { Product, Sale, BarcodeLookupResult } from "@/types";
 import toast from "react-hot-toast";
 
+// Inject responsive CSS for terminal layout
+let termStyleInjected = false;
+function injectTerminalStyles() {
+  if (termStyleInjected) return;
+  termStyleInjected = true;
+  const style = document.createElement("style");
+  style.textContent = `
+    .tos-terminal {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    .tos-terminal-products {
+      flex: 1;
+      overflow: hidden;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .tos-terminal-cart {
+      flex: 1;
+      flex-shrink: 0;
+      max-width: 50%;
+      min-width: 0;
+    }
+    @media (max-width: 700px) {
+      .tos-terminal {
+        flex-direction: column;
+      }
+      .tos-terminal-products {
+        flex: 1;
+        min-height: 0;
+      }
+      .tos-terminal-cart {
+        max-width: 100%;
+        flex: 1;
+        min-height: 0;
+        border-top: 1px solid #e2e8f0;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 interface Props {
   storeName: string;
 }
@@ -23,6 +68,8 @@ export default function Terminal({ storeName }: Props) {
 
   // Shared products state so starring in "Todos" updates "Favoritos" instantly
   const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => { injectTerminalStyles(); }, []);
 
   useEffect(() => {
     searchProducts("", 100).then(setProducts).catch(() => {});
@@ -82,8 +129,8 @@ export default function Terminal({ storeName }: Props) {
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.productsPanel}>
+    <div className="tos-terminal">
+      <div className="tos-terminal-products">
         <div style={styles.panelHeader}>
           <button
             style={!showAllProducts ? { ...styles.viewBtn, ...styles.viewBtnActive } : styles.viewBtn}
@@ -105,7 +152,7 @@ export default function Terminal({ storeName }: Props) {
           onProductsChange={setProducts}
         />
       </div>
-      <div style={styles.cartPanel}>
+      <div className="tos-terminal-cart">
         <Cart
           items={cart.items}
           subtotal={cart.subtotal}
@@ -147,14 +194,6 @@ export default function Terminal({ storeName }: Props) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { display: "flex", flex: 1, overflow: "hidden" },
-  productsPanel: {
-    flex: 1,
-    overflow: "hidden",
-    background: "#f8fafc",
-    display: "flex",
-    flexDirection: "column",
-  },
   panelHeader: {
     display: "flex",
     gap: 0,
@@ -178,5 +217,4 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottomColor: "#2563eb",
     fontWeight: 600,
   },
-  cartPanel: { flex: 1, flexShrink: 0, maxWidth: "50%" },
 };
