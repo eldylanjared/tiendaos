@@ -4,23 +4,30 @@ import ProductForm from "@/components/Admin/ProductForm";
 import type { Product } from "@/types";
 import toast from "react-hot-toast";
 
-const COLUMNS = [
-  { key: "price", label: "Precio", default: true },
-  { key: "cost", label: "Costo", default: false },
-  { key: "stock", label: "Stock", default: true },
-  { key: "category", label: "Categoria", default: false },
-  { key: "image", label: "Imagen", default: false },
-  { key: "updated_at", label: "Ultima modificacion", default: false },
-  { key: "created_at", label: "Fecha creacion", default: false },
-  { key: "sell_by_weight", label: "Por peso", default: false },
-  { key: "packs", label: "Packs", default: true },
+// Every column definition — "name" and "barcode" are always visible
+const ALL_COLUMNS = [
+  { key: "name", label: "Producto", toggleable: false, align: "left" as const },
+  { key: "barcode", label: "Codigo", toggleable: false, align: "left" as const },
+  { key: "price", label: "Precio", toggleable: true, default: true, align: "right" as const },
+  { key: "cost", label: "Costo", toggleable: true, default: false, align: "right" as const },
+  { key: "stock", label: "Stock", toggleable: true, default: true, align: "right" as const },
+  { key: "category", label: "Categoria", toggleable: true, default: false, align: "left" as const },
+  { key: "image", label: "Imagen", toggleable: true, default: false, align: "center" as const },
+  { key: "updated_at", label: "Modificado", toggleable: true, default: false, align: "left" as const },
+  { key: "created_at", label: "Creado", toggleable: true, default: false, align: "left" as const },
+  { key: "sell_by_weight", label: "Por peso", toggleable: true, default: false, align: "center" as const },
+  { key: "packs", label: "Packs", toggleable: true, default: true, align: "center" as const },
 ] as const;
 
-type ColKey = (typeof COLUMNS)[number]["key"];
-
-// All sortable column keys (including the always-visible ones)
-type SortKey = "name" | "barcode" | ColKey;
+type ColKey = (typeof ALL_COLUMNS)[number]["key"];
 type SortDir = "asc" | "desc";
+
+const DEFAULT_ORDER: ColKey[] = ALL_COLUMNS.map((c) => c.key);
+const TOGGLEABLE_COLS = ALL_COLUMNS.filter((c) => c.toggleable);
+
+function colDef(key: ColKey) {
+  return ALL_COLUMNS.find((c) => c.key === key)!;
+}
 
 function fmt(n: number) {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -37,7 +44,39 @@ function loadVisibleCols(): Set<ColKey> {
     const saved = localStorage.getItem("productCols");
     if (saved) return new Set(JSON.parse(saved) as ColKey[]);
   } catch { /* ignore */ }
-  return new Set(COLUMNS.filter((c) => c.default).map((c) => c.key));
+  return new Set(TOGGLEABLE_COLS.filter((c) => c.default).map((c) => c.key));
+}
+
+function loadColOrder(): ColKey[] {
+  try {
+    const saved = localStorage.getItem("productColOrder");
+    if (saved) {
+      const order = JSON.parse(saved) as ColKey[];
+      // Ensure all columns are present (in case new ones were added)
+      const set = new Set(order);
+      for (const c of DEFAULT_ORDER) {
+        if (!set.has(c)) order.push(c);
+      }
+      return order.filter((k) => ALL_COLUMNS.some((c) => c.key === k));
+    }
+  } catch { /* ignore */ }
+  return [...DEFAULT_ORDER];
+}
+
+// Inject drag styles once
+let dragStyleInjected = false;
+function injectDragStyles() {
+  if (dragStyleInjected) return;
+  dragStyleInjected = true;
+  const style = document.createElement("style");
+  style.textContent = `
+    .pm-th-drag { cursor: grab; user-select: none; }
+    .pm-th-drag:active { cursor: grabbing; }
+    .pm-th-drag.drag-over-left { box-shadow: inset 3px 0 0 #2563eb; }
+    .pm-th-drag.drag-over-right { box-shadow: inset -3px 0 0 #2563eb; }
+    .pm-th-drag.dragging { opacity: 0.4; }
+  `;
+  document.head.appendChild(style);
 }
 
 export default function ProductManager() {
@@ -48,11 +87,19 @@ export default function ProductManager() {
   const [importing, setImporting] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(loadVisibleCols);
   const [showColPicker, setShowColPicker] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortKey, setSortKey] = useState<ColKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(50); // 0 = show all
+  const [pageSize, setPageSize] = useState(50);
+  const [colOrder, setColOrder] = useState<ColKey[]>(loadColOrder);
   const importRef = useRef<HTMLInputElement>(null);
+
+  // Drag state — not in React state to avoid re-renders during drag
+  const dragRef = useRef<{ dragKey: ColKey | null; overKey: ColKey | null; side: "left" | "right" | null }>({
+    dragKey: null, overKey: null, side: null,
+  });
+
+  useEffect(() => { injectDragStyles(); }, []);
 
   useEffect(() => {
     setPage(0);
@@ -80,6 +127,63 @@ export default function ProductManager() {
       localStorage.setItem("productCols", JSON.stringify([...next]));
       return next;
     });
+  }
+
+  function saveColOrder(order: ColKey[]) {
+    setColOrder(order);
+    localStorage.setItem("productColOrder", JSON.stringify(order));
+  }
+
+  // -- Drag handlers --
+  function onDragStart(e: React.DragEvent, key: ColKey) {
+    dragRef.current.dragKey = key;
+    e.dataTransfer.effectAllowed = "move";
+    (e.currentTarget as HTMLElement).classList.add("dragging");
+  }
+
+  function onDragEnd(e: React.DragEvent) {
+    (e.currentTarget as HTMLElement).classList.remove("dragging");
+    // Clean all drag-over classes
+    document.querySelectorAll(".drag-over-left, .drag-over-right").forEach((el) => {
+      el.classList.remove("drag-over-left", "drag-over-right");
+    });
+    dragRef.current = { dragKey: null, overKey: null, side: null };
+  }
+
+  function onDragOver(e: React.DragEvent, key: ColKey) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const side = e.clientX < midX ? "left" : "right";
+    const el = e.currentTarget as HTMLElement;
+
+    if (dragRef.current.overKey !== key || dragRef.current.side !== side) {
+      // Remove old indicators
+      document.querySelectorAll(".drag-over-left, .drag-over-right").forEach((n) => {
+        n.classList.remove("drag-over-left", "drag-over-right");
+      });
+      el.classList.add(side === "left" ? "drag-over-left" : "drag-over-right");
+      dragRef.current.overKey = key;
+      dragRef.current.side = side;
+    }
+  }
+
+  function onDrop(e: React.DragEvent, targetKey: ColKey) {
+    e.preventDefault();
+    const { dragKey, side } = dragRef.current;
+    if (!dragKey || dragKey === targetKey) return;
+
+    const order = [...colOrder];
+    const fromIdx = order.indexOf(dragKey);
+    if (fromIdx === -1) return;
+    // Remove dragged column
+    order.splice(fromIdx, 1);
+    // Find target index in the new array
+    let toIdx = order.indexOf(targetKey);
+    if (side === "right") toIdx += 1;
+    order.splice(toIdx, 0, dragKey);
+    saveColOrder(order);
   }
 
   async function handleExport() {
@@ -125,7 +229,7 @@ export default function ProductManager() {
     return <ProductForm product={selected} onSave={handleSaved} onCancel={() => setSelected(null)} />;
   }
 
-  function handleSort(key: SortKey) {
+  function handleSort(key: ColKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -134,7 +238,7 @@ export default function ProductManager() {
     }
   }
 
-  const sortIndicator = (key: SortKey) =>
+  const sortIndicator = (key: ColKey) =>
     sortKey === key ? (sortDir === "asc" ? " \u25B2" : " \u25BC") : "";
 
   const sortedProducts = [...products].sort((a, b) => {
@@ -164,7 +268,76 @@ export default function ProductManager() {
     ? sortedProducts.slice(page * pageSize, (page + 1) * pageSize)
     : sortedProducts;
 
-  const show = (k: ColKey) => visibleCols.has(k);
+  // Visible columns in user-defined order
+  const displayCols = colOrder.filter((k) => {
+    const def = colDef(k);
+    if (!def.toggleable) return true; // name, barcode always shown
+    return visibleCols.has(k);
+  });
+
+  function renderCell(p: Product, key: ColKey) {
+    switch (key) {
+      case "name":
+        return (
+          <td key={key} style={styles.tdName}>
+            <div style={styles.nameCell}>
+              {p.image_url ? (
+                <img src={p.image_url} alt="" style={styles.thumb} />
+              ) : (
+                <div style={styles.thumbPlaceholder}>{p.name.charAt(0).toUpperCase()}</div>
+              )}
+              <span style={styles.rowName}>{p.name}</span>
+            </div>
+          </td>
+        );
+      case "barcode":
+        return <td key={key} style={{ ...styles.td, ...styles.barcode }}>{p.barcode}</td>;
+      case "price":
+        return <td key={key} style={{ ...styles.td, textAlign: "right", fontWeight: 600 }}>${fmt(p.price)}</td>;
+      case "cost":
+        return <td key={key} style={{ ...styles.td, textAlign: "right", color: "#64748b" }}>${fmt(p.cost)}</td>;
+      case "stock":
+        return (
+          <td key={key} style={{ ...styles.td, textAlign: "right", color: p.stock <= p.min_stock ? "#dc2626" : "#16a34a", fontWeight: 600 }}>
+            {p.stock}
+          </td>
+        );
+      case "category":
+        return (
+          <td key={key} style={styles.td}>
+            {p.category ? (
+              <span style={{ ...styles.badge, background: p.category.color || "#94a3b8" }}>{p.category.name}</span>
+            ) : (
+              <span style={{ color: "#cbd5e1" }}>—</span>
+            )}
+          </td>
+        );
+      case "image":
+        return (
+          <td key={key} style={{ ...styles.td, textAlign: "center" }}>
+            {p.image_url ? <span style={styles.yesTag}>Si</span> : <span style={styles.noTag}>No</span>}
+          </td>
+        );
+      case "packs":
+        return (
+          <td key={key} style={{ ...styles.td, textAlign: "center" }}>
+            {p.barcodes.length > 0 ? <span style={styles.packTag}>{p.barcodes.length}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
+          </td>
+        );
+      case "sell_by_weight":
+        return (
+          <td key={key} style={{ ...styles.td, textAlign: "center" }}>
+            {p.sell_by_weight ? <span style={styles.weightTag}>Si</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
+          </td>
+        );
+      case "updated_at":
+        return <td key={key} style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>{fmtDate(p.updated_at)}</td>;
+      case "created_at":
+        return <td key={key} style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>{fmtDate(p.created_at)}</td>;
+      default:
+        return null;
+    }
+  }
 
   return (
     <div>
@@ -207,7 +380,7 @@ export default function ProductManager() {
           </button>
           {showColPicker && (
             <div style={styles.colPicker}>
-              {COLUMNS.map((c) => (
+              {TOGGLEABLE_COLS.map((c) => (
                 <label key={c.key} style={styles.colCheckLabel}>
                   <input
                     type="checkbox"
@@ -265,108 +438,30 @@ export default function ProductManager() {
         <table style={styles.table}>
           <thead>
             <tr>
-              <th style={styles.thSort} onClick={() => handleSort("name")}>Producto{sortIndicator("name")}</th>
-              <th style={styles.thSort} onClick={() => handleSort("barcode")}>Codigo{sortIndicator("barcode")}</th>
-              {show("price") && <th style={{ ...styles.thSort, textAlign: "right" }} onClick={() => handleSort("price")}>Precio{sortIndicator("price")}</th>}
-              {show("cost") && <th style={{ ...styles.thSort, textAlign: "right" }} onClick={() => handleSort("cost")}>Costo{sortIndicator("cost")}</th>}
-              {show("stock") && <th style={{ ...styles.thSort, textAlign: "right" }} onClick={() => handleSort("stock")}>Stock{sortIndicator("stock")}</th>}
-              {show("category") && <th style={styles.thSort} onClick={() => handleSort("category")}>Categoria{sortIndicator("category")}</th>}
-              {show("image") && <th style={{ ...styles.thSort, textAlign: "center" }} onClick={() => handleSort("image")}>Imagen{sortIndicator("image")}</th>}
-              {show("packs") && <th style={{ ...styles.thSort, textAlign: "center" }} onClick={() => handleSort("packs")}>Packs{sortIndicator("packs")}</th>}
-              {show("sell_by_weight") && <th style={{ ...styles.thSort, textAlign: "center" }} onClick={() => handleSort("sell_by_weight")}>Peso{sortIndicator("sell_by_weight")}</th>}
-              {show("updated_at") && <th style={styles.thSort} onClick={() => handleSort("updated_at")}>Modificado{sortIndicator("updated_at")}</th>}
-              {show("created_at") && <th style={styles.thSort} onClick={() => handleSort("created_at")}>Creado{sortIndicator("created_at")}</th>}
+              {displayCols.map((key) => {
+                const def = colDef(key);
+                return (
+                  <th
+                    key={key}
+                    className="pm-th-drag"
+                    style={{ ...styles.thSort, textAlign: def.align }}
+                    draggable
+                    onClick={() => handleSort(key)}
+                    onDragStart={(e) => onDragStart(e, key)}
+                    onDragEnd={onDragEnd}
+                    onDragOver={(e) => onDragOver(e, key)}
+                    onDrop={(e) => onDrop(e, key)}
+                  >
+                    {def.label}{sortIndicator(key)}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {pagedProducts.map((p) => (
               <tr key={p.id} style={styles.tr} onClick={() => setSelected(p)}>
-                <td style={styles.tdName}>
-                  <div style={styles.nameCell}>
-                    {p.image_url ? (
-                      <img src={p.image_url} alt="" style={styles.thumb} />
-                    ) : (
-                      <div style={styles.thumbPlaceholder}>{p.name.charAt(0).toUpperCase()}</div>
-                    )}
-                    <span style={styles.rowName}>{p.name}</span>
-                  </div>
-                </td>
-                <td style={{ ...styles.td, ...styles.barcode }}>{p.barcode}</td>
-                {show("price") && (
-                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600 }}>
-                    ${fmt(p.price)}
-                  </td>
-                )}
-                {show("cost") && (
-                  <td style={{ ...styles.td, textAlign: "right", color: "#64748b" }}>
-                    ${fmt(p.cost)}
-                  </td>
-                )}
-                {show("stock") && (
-                  <td
-                    style={{
-                      ...styles.td,
-                      textAlign: "right",
-                      color: p.stock <= p.min_stock ? "#dc2626" : "#16a34a",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {p.stock}
-                  </td>
-                )}
-                {show("category") && (
-                  <td style={styles.td}>
-                    {p.category ? (
-                      <span
-                        style={{
-                          ...styles.badge,
-                          background: p.category.color || "#94a3b8",
-                        }}
-                      >
-                        {p.category.name}
-                      </span>
-                    ) : (
-                      <span style={{ color: "#cbd5e1" }}>—</span>
-                    )}
-                  </td>
-                )}
-                {show("image") && (
-                  <td style={{ ...styles.td, textAlign: "center" }}>
-                    {p.image_url ? (
-                      <span style={styles.yesTag}>Si</span>
-                    ) : (
-                      <span style={styles.noTag}>No</span>
-                    )}
-                  </td>
-                )}
-                {show("packs") && (
-                  <td style={{ ...styles.td, textAlign: "center" }}>
-                    {p.barcodes.length > 0 ? (
-                      <span style={styles.packTag}>{p.barcodes.length}</span>
-                    ) : (
-                      <span style={{ color: "#cbd5e1" }}>—</span>
-                    )}
-                  </td>
-                )}
-                {show("sell_by_weight") && (
-                  <td style={{ ...styles.td, textAlign: "center" }}>
-                    {p.sell_by_weight ? (
-                      <span style={styles.weightTag}>Si</span>
-                    ) : (
-                      <span style={{ color: "#cbd5e1" }}>—</span>
-                    )}
-                  </td>
-                )}
-                {show("updated_at") && (
-                  <td style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>
-                    {fmtDate(p.updated_at)}
-                  </td>
-                )}
-                {show("created_at") && (
-                  <td style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>
-                    {fmtDate(p.created_at)}
-                  </td>
-                )}
+                {displayCols.map((key) => renderCell(p, key))}
               </tr>
             ))}
             {products.length === 0 && (
@@ -469,18 +564,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: "100%",
     borderCollapse: "collapse",
     fontSize: 13,
-  },
-  th: {
-    padding: "10px 12px",
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#64748b",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    borderBottom: "2px solid #e2e8f0",
-    background: "#f8fafc",
-    whiteSpace: "nowrap",
   },
   thSort: {
     padding: "10px 12px",
