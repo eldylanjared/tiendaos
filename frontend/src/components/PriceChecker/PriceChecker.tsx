@@ -177,9 +177,10 @@ const responsiveCSS = `
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3vh 3vw;
+  padding: 0;
   overflow: hidden;
   min-height: 0;
+  background: #fff;
 }
 
 /* Idle state */
@@ -195,36 +196,35 @@ const responsiveCSS = `
   display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: center;
   background: #fff;
-  border-radius: clamp(10px, 2vh, 20px);
-  padding: clamp(12px, 3vh, 40px);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-  max-width: 95vw;
-  max-height: 85vh;
+  border-radius: 0;
+  padding: clamp(16px, 4vh, 48px);
   width: 100%;
-  gap: clamp(12px, 3vw, 40px);
+  height: 100%;
+  gap: clamp(16px, 4vw, 48px);
   overflow: hidden;
   box-sizing: border-box;
 }
 .pc-card-img { flex-shrink: 0; }
 .pc-product-img {
-  width: clamp(80px, 22vh, 200px);
-  height: clamp(80px, 22vh, 200px);
+  width: clamp(100px, 35vh, 300px);
+  height: clamp(100px, 35vh, 300px);
   object-fit: contain;
-  border-radius: clamp(6px, 1vh, 12px);
+  border-radius: clamp(8px, 1.5vh, 16px);
 }
 .pc-img-placeholder {
-  width: clamp(80px, 22vh, 200px);
-  height: clamp(80px, 22vh, 200px);
+  width: clamp(100px, 35vh, 300px);
+  height: clamp(100px, 35vh, 300px);
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f1f5f9;
-  border-radius: clamp(6px, 1vh, 12px);
+  border-radius: clamp(8px, 1.5vh, 16px);
 }
 .pc-placeholder-svg {
-  width: clamp(40px, 10vh, 80px);
-  height: clamp(40px, 10vh, 80px);
+  width: clamp(50px, 15vh, 120px);
+  height: clamp(50px, 15vh, 120px);
 }
 
 .pc-card-info {
@@ -233,7 +233,7 @@ const responsiveCSS = `
   overflow: hidden;
 }
 .pc-product-name {
-  font-size: clamp(16px, 4vh, 32px);
+  font-size: clamp(20px, 5vh, 42px);
   font-weight: 700;
   color: #0f172a;
   margin: 0 0 1vh;
@@ -261,9 +261,9 @@ const responsiveCSS = `
   gap: 2px;
   margin-top: 1vh;
 }
-.pc-currency { font-size: clamp(20px, 5vh, 36px); font-weight: 700; color: #16a34a; }
-.pc-price-main { font-size: clamp(36px, 10vh, 80px); font-weight: 800; color: #16a34a; line-height: 1; }
-.pc-price-cents { font-size: clamp(16px, 4vh, 36px); font-weight: 700; color: #16a34a; align-self: flex-start; margin-top: 0.5vh; }
+.pc-currency { font-size: clamp(24px, 7vh, 48px); font-weight: 700; color: #16a34a; }
+.pc-price-main { font-size: clamp(48px, 15vh, 120px); font-weight: 800; color: #16a34a; line-height: 1; }
+.pc-price-cents { font-size: clamp(20px, 6vh, 48px); font-weight: 700; color: #16a34a; align-self: flex-start; margin-top: 0.5vh; }
 .pc-per-kg { font-size: clamp(12px, 2.5vh, 22px); color: #64748b; margin-left: 4px; }
 .pc-unit-note { font-size: clamp(11px, 1.8vh, 16px); color: #64748b; margin-top: 1vh; }
 
@@ -283,7 +283,7 @@ const responsiveCSS = `
     flex-direction: column;
     text-align: center;
     gap: clamp(8px, 2vh, 20px);
-    padding: clamp(8px, 2vh, 24px);
+    padding: clamp(12px, 3vh, 32px);
   }
   .pc-price-box { justify-content: center; }
   .pc-promo-list { justify-content: center; }
