@@ -6,6 +6,7 @@ import PriceChecker from "@/components/PriceChecker/PriceChecker";
 import AdminPanel from "@/components/Admin/AdminPanel";
 import FinanceTracker from "@/components/Finance/FinanceTracker";
 import ChatPanel from "@/components/Chat/ChatPanel";
+import TicketBoard from "@/components/Tickets/TicketBoard";
 import { getStoredUser, clearAuth, isLoggedIn } from "@/store/auth";
 import { setAuthExpiredHandler } from "@/services/api";
 import { useKeepAlive } from "@/hooks/useKeepAlive";
@@ -15,7 +16,7 @@ import toast from "react-hot-toast";
 
 const STORE_NAME = "Tienda Centro"; // Loaded from backend in Phase 2
 
-type View = "terminal" | "admin" | "price-checker" | "finance" | "personal-finance" | "chat";
+type View = "terminal" | "admin" | "price-checker" | "finance" | "personal-finance" | "tickets" | "chat";
 
 // Path-based routing: /precios, /terminal, /admin
 // "locked" means the URL path locks to that view (no nav switching)
@@ -27,6 +28,7 @@ function getViewFromPath(): { view: View; locked: boolean } {
   if (path === "/terminal") return { view: "terminal", locked: true };
   if (path === "/finanzas") return { view: "finance", locked: true };
   if (path === "/mis-finanzas") return { view: "personal-finance", locked: true };
+  if (path === "/tickets") return { view: "tickets", locked: true };
   if (path === "/chat") return { view: "chat", locked: true };
 
   // Legacy query param support
@@ -105,6 +107,7 @@ export default function App() {
       {view === "price-checker" && <PriceChecker storeName={STORE_NAME} />}
       {view === "finance" && <div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} /></div>}
       {view === "personal-finance" && <div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} personal /></div>}
+      {view === "tickets" && <div style={{ flex: 1, overflow: "hidden" }}><TicketBoard user={user} /></div>}
       {view === "chat" && <div style={{ flex: 1, overflow: "hidden" }}><ChatPanel /></div>}
       <Toaster position="top-right" />
     </div>

@@ -1,6 +1,6 @@
 import type { User } from "@/types";
 
-type View = "terminal" | "admin" | "price-checker" | "finance" | "personal-finance" | "chat";
+type View = "terminal" | "admin" | "price-checker" | "finance" | "personal-finance" | "tickets" | "chat";
 
 interface Props {
   user: User;
@@ -32,6 +32,7 @@ export default function Header({ user, storeName, onLogout, view, onViewChange, 
                 <a href="/finanzas" style={view === "finance" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Finanzas</a>
               )}
               <a href="/mis-finanzas" style={view === "personal-finance" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Mis Finanzas</a>
+              <a href="/tickets" style={view === "tickets" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Tickets</a>
               {isAdminOrManager && (
                 <a href="/chat" style={view === "chat" ? { ...styles.navLink, ...styles.navBtnActive } : styles.navLink}>Chat</a>
               )}
@@ -63,6 +64,10 @@ export default function Header({ user, storeName, onLogout, view, onViewChange, 
                 style={view === "personal-finance" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
                 onClick={() => onViewChange?.("personal-finance")}
               >Mis Finanzas</button>
+              <button
+                style={view === "tickets" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
+                onClick={() => onViewChange?.("tickets")}
+              >Tickets</button>
               {isAdminOrManager && (
                 <button
                   style={view === "chat" ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}

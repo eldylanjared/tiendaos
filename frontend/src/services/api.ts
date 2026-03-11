@@ -441,3 +441,43 @@ export async function scanReceipt(image: File): Promise<{
   }
   return res.json();
 }
+
+// Tickets
+export interface TicketData {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  created_by: string;
+  created_by_name: string;
+  assigned_to: string | null;
+  assigned_to_name: string;
+  due_date: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getTickets(status?: string, assignedTo?: string) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (assignedTo) params.set("assigned_to", assignedTo);
+  return request<TicketData[]>(`/tickets?${params}`);
+}
+
+export function createTicket(data: { title: string; description?: string; priority?: string; assigned_to?: string; due_date?: string }) {
+  return request<TicketData>("/tickets", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateTicket(ticketId: string, data: Record<string, unknown>) {
+  return request<TicketData>(`/tickets/${ticketId}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteTicket(ticketId: string) {
+  return request<{ ok: boolean }>(`/tickets/${ticketId}`, { method: "DELETE" });
+}
+
+export function getTicketEmployees() {
+  return request<{ id: string; full_name: string; role: string }[]>("/tickets/employees");
+}
