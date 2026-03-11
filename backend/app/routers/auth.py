@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import time
+from collections import defaultdict
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -14,6 +17,25 @@ from app.services.auth import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+# --- Rate limiter (in-memory, per IP) ---
+_attempts: dict[str, list[float]] = defaultdict(list)
+MAX_ATTEMPTS = 10      # max login attempts per window
+WINDOW_SECONDS = 300   # 5-minute window
+LOCKOUT_SECONDS = 600  # 10-minute lockout after exceeding
+
+
+def _check_rate_limit(request: Request):
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    # Clean old entries
+    _attempts[ip] = [t for t in _attempts[ip] if now - t < LOCKOUT_SECONDS]
+    if len(_attempts[ip]) >= MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos. Espera 10 minutos.",
+        )
+    _attempts[ip].append(now)
 
 
 @router.post("/register", response_model=UserResponse)
@@ -38,7 +60,8 @@ def register(data: UserCreate, db: Session = Depends(get_db), _admin: User = Dep
 
 
 @router.post("/login", response_model=Token)
-def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    _check_rate_limit(request)
     user = db.query(User).filter(User.username == form.username, User.is_active == True).first()
     if not user or not verify_password(form.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -46,7 +69,8 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 
 
 @router.post("/pin-login", response_model=Token)
-def pin_login(data: PinLogin, db: Session = Depends(get_db)):
+def pin_login(request: Request, data: PinLogin, db: Session = Depends(get_db)):
+    _check_rate_limit(request)
     user = db.query(User).filter(User.pin_code == data.pin_code, User.is_active == True).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid PIN")
