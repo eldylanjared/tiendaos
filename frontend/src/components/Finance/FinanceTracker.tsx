@@ -42,6 +42,48 @@ function fmt(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+type DateRange = "today" | "week" | "month" | "year" | "all";
+
+function toIso(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function calcDateRange(range: DateRange): [string, string] {
+  const now = new Date();
+  const today = toIso(now);
+  switch (range) {
+    case "today":
+      return [today, today];
+    case "week": {
+      const day = now.getDay(); // 0=Sun
+      const mon = new Date(now);
+      mon.setDate(now.getDate() - ((day + 6) % 7)); // Monday
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      return [toIso(mon), toIso(sun)];
+    }
+    case "month": {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return [toIso(first), toIso(last)];
+    }
+    case "year": {
+      return [`${now.getFullYear()}-01-01`, `${now.getFullYear()}-12-31`];
+    }
+    case "all":
+      return ["", ""];
+  }
+}
+
+function getActiveDateRange(start: string, end: string): DateRange | null {
+  for (const r of ["today", "week", "month", "year"] as DateRange[]) {
+    const [s0, e0] = calcDateRange(r);
+    if (start === s0 && end === e0) return r;
+  }
+  if (!start && !end) return "all";
+  return null;
+}
+
 type Tab = "list" | "add";
 
 interface Props {
@@ -295,6 +337,32 @@ export default function FinanceTracker({ user, personal = false }: Props) {
               )}
             </div>
           )}
+
+          {/* Quick date buttons */}
+          <div style={s.quickDates}>
+            {([
+              ["Hoy", "today"],
+              ["Esta Semana", "week"],
+              ["Este Mes", "month"],
+              ["Este Año", "year"],
+              ["Todo", "all"],
+            ] as const).map(([label, range]) => {
+              const active = getActiveDateRange(start, end) === range;
+              return (
+                <button
+                  key={range}
+                  style={active ? { ...s.quickDateBtn, ...s.quickDateBtnActive } : s.quickDateBtn}
+                  onClick={() => {
+                    const [s0, e0] = calcDateRange(range);
+                    setStart(s0);
+                    setEnd(e0);
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Filters */}
           <div style={s.filters}>
@@ -581,6 +649,28 @@ const s: Record<string, React.CSSProperties> = {
   breakdownItem: { display: "flex", justifyContent: "space-between", fontSize: 12 },
   breakdownCat: { color: "#64748b" },
   breakdownAmt: { fontWeight: 600, color: "#0f172a" },
+  quickDates: {
+    display: "flex",
+    gap: 6,
+    marginBottom: 8,
+    flexWrap: "wrap",
+  },
+  quickDateBtn: {
+    padding: "6px 14px",
+    borderRadius: 8,
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#475569",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  quickDateBtnActive: {
+    background: "#0f172a",
+    color: "#fff",
+    borderColor: "#0f172a",
+    fontWeight: 600,
+  },
   filters: { display: "flex", gap: 6, alignItems: "center", marginBottom: 8, flexWrap: "wrap" },
   dateInput: { padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, flex: 1, minWidth: 110 },
   select: { padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13 },
