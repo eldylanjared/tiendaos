@@ -70,11 +70,37 @@ function injectDragStyles() {
   dragStyleInjected = true;
   const style = document.createElement("style");
   style.textContent = `
-    .pm-th-drag { cursor: grab; user-select: none; }
+    .pm-th-drag {
+      cursor: grab;
+      user-select: none;
+      transition: background 0.15s, transform 0.15s;
+    }
     .pm-th-drag:active { cursor: grabbing; }
-    .pm-th-drag.drag-over-left { box-shadow: inset 3px 0 0 #2563eb; }
-    .pm-th-drag.drag-over-right { box-shadow: inset -3px 0 0 #2563eb; }
-    .pm-th-drag.dragging { opacity: 0.4; }
+    .pm-th-drag.dragging {
+      opacity: 0.35;
+      background: #dbeafe !important;
+      color: #2563eb !important;
+      transform: scale(0.95);
+    }
+    .pm-th-drag.drag-over-left {
+      box-shadow: inset 4px 0 0 #2563eb;
+      background: #eff6ff !important;
+    }
+    .pm-th-drag.drag-over-right {
+      box-shadow: inset -4px 0 0 #2563eb;
+      background: #eff6ff !important;
+    }
+    .pm-col-highlight {
+      background: #eff6ff !important;
+      transition: background 0.3s;
+    }
+    @keyframes pm-col-flash {
+      0% { background: #bfdbfe; }
+      100% { background: transparent; }
+    }
+    .pm-col-flash td, .pm-col-flash th {
+      animation: pm-col-flash 0.6s ease-out;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -92,6 +118,9 @@ export default function ProductManager() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [colOrder, setColOrder] = useState<ColKey[]>(loadColOrder);
+  const [dragSourceCol, setDragSourceCol] = useState<ColKey | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null);
+  const [flashCol, setFlashCol] = useState<ColKey | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   // Drag state — not in React state to avoid re-renders during drag
@@ -139,15 +168,17 @@ export default function ProductManager() {
     dragRef.current.dragKey = key;
     e.dataTransfer.effectAllowed = "move";
     (e.currentTarget as HTMLElement).classList.add("dragging");
+    setDragSourceCol(key);
   }
 
   function onDragEnd(e: React.DragEvent) {
     (e.currentTarget as HTMLElement).classList.remove("dragging");
-    // Clean all drag-over classes
     document.querySelectorAll(".drag-over-left, .drag-over-right").forEach((el) => {
       el.classList.remove("drag-over-left", "drag-over-right");
     });
     dragRef.current = { dragKey: null, overKey: null, side: null };
+    setDragSourceCol(null);
+    setDragOverCol(null);
   }
 
   function onDragOver(e: React.DragEvent, key: ColKey) {
@@ -159,14 +190,18 @@ export default function ProductManager() {
     const el = e.currentTarget as HTMLElement;
 
     if (dragRef.current.overKey !== key || dragRef.current.side !== side) {
-      // Remove old indicators
       document.querySelectorAll(".drag-over-left, .drag-over-right").forEach((n) => {
         n.classList.remove("drag-over-left", "drag-over-right");
       });
       el.classList.add(side === "left" ? "drag-over-left" : "drag-over-right");
       dragRef.current.overKey = key;
       dragRef.current.side = side;
+      setDragOverCol(key);
     }
+  }
+
+  function onDragLeave() {
+    setDragOverCol(null);
   }
 
   function onDrop(e: React.DragEvent, targetKey: ColKey) {
@@ -177,13 +212,15 @@ export default function ProductManager() {
     const order = [...colOrder];
     const fromIdx = order.indexOf(dragKey);
     if (fromIdx === -1) return;
-    // Remove dragged column
     order.splice(fromIdx, 1);
-    // Find target index in the new array
     let toIdx = order.indexOf(targetKey);
     if (side === "right") toIdx += 1;
     order.splice(toIdx, 0, dragKey);
     saveColOrder(order);
+
+    // Flash the moved column briefly
+    setFlashCol(dragKey);
+    setTimeout(() => setFlashCol(null), 600);
   }
 
   async function handleExport() {
@@ -275,11 +312,19 @@ export default function ProductManager() {
     return visibleCols.has(k);
   });
 
+  function cellHighlight(key: ColKey): React.CSSProperties {
+    if (key === dragSourceCol) return { background: "#dbeafe", opacity: 0.5 };
+    if (key === dragOverCol) return { background: "#eff6ff" };
+    if (key === flashCol) return { background: "#bfdbfe", transition: "background 0.6s ease-out" };
+    return {};
+  }
+
   function renderCell(p: Product, key: ColKey) {
+    const hl = cellHighlight(key);
     switch (key) {
       case "name":
         return (
-          <td key={key} style={styles.tdName}>
+          <td key={key} style={{ ...styles.tdName, ...hl }}>
             <div style={styles.nameCell}>
               {p.image_url ? (
                 <img src={p.image_url} alt="" style={styles.thumb} />
@@ -291,20 +336,20 @@ export default function ProductManager() {
           </td>
         );
       case "barcode":
-        return <td key={key} style={{ ...styles.td, ...styles.barcode }}>{p.barcode}</td>;
+        return <td key={key} style={{ ...styles.td, ...styles.barcode, ...hl }}>{p.barcode}</td>;
       case "price":
-        return <td key={key} style={{ ...styles.td, textAlign: "right", fontWeight: 600 }}>${fmt(p.price)}</td>;
+        return <td key={key} style={{ ...styles.td, textAlign: "right", fontWeight: 600, ...hl }}>${fmt(p.price)}</td>;
       case "cost":
-        return <td key={key} style={{ ...styles.td, textAlign: "right", color: "#64748b" }}>${fmt(p.cost)}</td>;
+        return <td key={key} style={{ ...styles.td, textAlign: "right", color: "#64748b", ...hl }}>${fmt(p.cost)}</td>;
       case "stock":
         return (
-          <td key={key} style={{ ...styles.td, textAlign: "right", color: p.stock <= p.min_stock ? "#dc2626" : "#16a34a", fontWeight: 600 }}>
+          <td key={key} style={{ ...styles.td, textAlign: "right", color: p.stock <= p.min_stock ? "#dc2626" : "#16a34a", fontWeight: 600, ...hl }}>
             {p.stock}
           </td>
         );
       case "category":
         return (
-          <td key={key} style={styles.td}>
+          <td key={key} style={{ ...styles.td, ...hl }}>
             {p.category ? (
               <span style={{ ...styles.badge, background: p.category.color || "#94a3b8" }}>{p.category.name}</span>
             ) : (
@@ -314,26 +359,26 @@ export default function ProductManager() {
         );
       case "image":
         return (
-          <td key={key} style={{ ...styles.td, textAlign: "center" }}>
+          <td key={key} style={{ ...styles.td, textAlign: "center", ...hl }}>
             {p.image_url ? <span style={styles.yesTag}>Si</span> : <span style={styles.noTag}>No</span>}
           </td>
         );
       case "packs":
         return (
-          <td key={key} style={{ ...styles.td, textAlign: "center" }}>
+          <td key={key} style={{ ...styles.td, textAlign: "center", ...hl }}>
             {p.barcodes.length > 0 ? <span style={styles.packTag}>{p.barcodes.length}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
           </td>
         );
       case "sell_by_weight":
         return (
-          <td key={key} style={{ ...styles.td, textAlign: "center" }}>
+          <td key={key} style={{ ...styles.td, textAlign: "center", ...hl }}>
             {p.sell_by_weight ? <span style={styles.weightTag}>Si</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
           </td>
         );
       case "updated_at":
-        return <td key={key} style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>{fmtDate(p.updated_at)}</td>;
+        return <td key={key} style={{ ...styles.td, color: "#64748b", fontSize: 12, ...hl }}>{fmtDate(p.updated_at)}</td>;
       case "created_at":
-        return <td key={key} style={{ ...styles.td, color: "#64748b", fontSize: 12 }}>{fmtDate(p.created_at)}</td>;
+        return <td key={key} style={{ ...styles.td, color: "#64748b", fontSize: 12, ...hl }}>{fmtDate(p.created_at)}</td>;
       default:
         return null;
     }
@@ -440,16 +485,18 @@ export default function ProductManager() {
             <tr>
               {displayCols.map((key) => {
                 const def = colDef(key);
+                const hl = cellHighlight(key);
                 return (
                   <th
                     key={key}
                     className="pm-th-drag"
-                    style={{ ...styles.thSort, textAlign: def.align }}
+                    style={{ ...styles.thSort, textAlign: def.align, ...hl }}
                     draggable
                     onClick={() => handleSort(key)}
                     onDragStart={(e) => onDragStart(e, key)}
                     onDragEnd={onDragEnd}
                     onDragOver={(e) => onDragOver(e, key)}
+                    onDragLeave={onDragLeave}
                     onDrop={(e) => onDrop(e, key)}
                   >
                     {def.label}{sortIndicator(key)}

@@ -20,7 +20,7 @@ function injectTerminalStyles() {
     .tos-terminal {
       display: flex;
       flex: 1;
-      overflow: hidden;
+      overflow: auto;
     }
     .tos-terminal-products {
       flex: 1;
@@ -28,13 +28,13 @@ function injectTerminalStyles() {
       background: #f8fafc;
       display: flex;
       flex-direction: column;
-      min-width: 0;
+      min-width: 320px;
     }
     .tos-terminal-cart {
       flex: 1;
       flex-shrink: 0;
       max-width: 50%;
-      min-width: 0;
+      min-width: 280px;
     }
     @media (max-width: 700px) {
       .tos-terminal {
@@ -42,10 +42,12 @@ function injectTerminalStyles() {
       }
       .tos-terminal-products {
         flex: 1;
-        min-height: 0;
+        min-width: 0;
+        min-height: 40vh;
       }
       .tos-terminal-cart {
         max-width: 100%;
+        min-width: 0;
         flex: 1;
         min-height: 0;
         border-top: 1px solid #e2e8f0;
