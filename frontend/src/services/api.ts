@@ -214,6 +214,24 @@ export async function importProductsCsv(file: File): Promise<{ created: number; 
   return res.json();
 }
 
+export function deleteProduct(productId: string) {
+  return request<{ ok: boolean }>(`/products/${productId}`, { method: "DELETE" });
+}
+
+export function bulkDeleteProducts(ids: string[]) {
+  return request<{ deleted: number }>(`/products/bulk-delete`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export function bulkPatchProducts(ids: string[], updates: Record<string, unknown>) {
+  return request<{ updated: number }>(`/products/bulk-patch`, {
+    method: "POST",
+    body: JSON.stringify({ ids, updates }),
+  });
+}
+
 export function toggleFavorite(productId: string) {
   return request<{ id: string; is_favorite: boolean }>(`/products/${productId}/toggle-favorite`, {
     method: "POST",

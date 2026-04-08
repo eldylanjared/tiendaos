@@ -315,6 +315,51 @@ def update_product(
     return product
 
 
+@router.delete("/{product_id}")
+def delete_product(
+    product_id: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    db.delete(product)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/bulk-delete")
+def bulk_delete_products(
+    data: dict,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    ids: list[str] = data.get("ids", [])
+    deleted = db.query(Product).filter(Product.id.in_(ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}
+
+
+@router.post("/bulk-patch")
+def bulk_patch_products(
+    data: dict,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    ids: list[str] = data.get("ids", [])
+    updates: dict = data.get("updates", {})
+    if not ids or not updates:
+        raise HTTPException(status_code=400, detail="ids and updates required")
+    allowed = {"is_active", "category_id"}
+    filtered = {k: v for k, v in updates.items() if k in allowed}
+    if not filtered:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    db.query(Product).filter(Product.id.in_(ids)).update(filtered, synchronize_session=False)
+    db.commit()
+    return {"updated": len(ids)}
+
+
 # --- Stock Adjustments ---
 
 @router.post("/{product_id}/toggle-favorite")

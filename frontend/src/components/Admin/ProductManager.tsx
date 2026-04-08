@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { searchProducts, exportProductsCsv, importProductsCsv } from "@/services/api";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { searchProducts, exportProductsCsv, importProductsCsv, bulkDeleteProducts, bulkPatchProducts } from "@/services/api";
 import ProductForm from "@/components/Admin/ProductForm";
 import type { Product } from "@/types";
 import toast from "react-hot-toast";
@@ -45,6 +45,20 @@ function loadVisibleCols(): Set<ColKey> {
     if (saved) return new Set(JSON.parse(saved) as ColKey[]);
   } catch { /* ignore */ }
   return new Set(TOGGLEABLE_COLS.filter((c) => c.default).map((c) => c.key));
+}
+
+const DEFAULT_COL_WIDTHS: Partial<Record<ColKey, number>> = {
+  name: 220, barcode: 140, price: 90, cost: 90, stock: 70,
+  category: 120, image: 70, updated_at: 110, created_at: 110,
+  sell_by_weight: 80, packs: 70,
+};
+
+function loadColWidths(): Record<string, number> {
+  try {
+    const saved = localStorage.getItem("productColWidths");
+    if (saved) return JSON.parse(saved);
+  } catch { /* ignore */ }
+  return { ...DEFAULT_COL_WIDTHS };
 }
 
 function loadColOrder(): ColKey[] {
@@ -101,6 +115,20 @@ function injectDragStyles() {
     .pm-col-flash td, .pm-col-flash th {
       animation: pm-col-flash 0.6s ease-out;
     }
+    .pm-resize-handle {
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 6px;
+      cursor: col-resize;
+      z-index: 2;
+      user-select: none;
+    }
+    .pm-resize-handle:hover, .pm-resize-handle.resizing {
+      background: #2563eb44;
+    }
+    .pm-row-selected { background: #eff6ff !important; }
+    .pm-row-selected:hover { background: #dbeafe !important; }
+    .pm-cb { cursor: pointer; width: 16px; height: 16px; accent-color: #2563eb; }
   `;
   document.head.appendChild(style);
 }
@@ -121,12 +149,46 @@ export default function ProductManager() {
   const [dragSourceCol, setDragSourceCol] = useState<ColKey | null>(null);
   const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null);
   const [flashCol, setFlashCol] = useState<ColKey | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [colWidths, setColWidths] = useState<Record<string, number>>(loadColWidths);
   const importRef = useRef<HTMLInputElement>(null);
 
   // Drag state — not in React state to avoid re-renders during drag
   const dragRef = useRef<{ dragKey: ColKey | null; overKey: ColKey | null; side: "left" | "right" | null }>({
     dragKey: null, overKey: null, side: null,
   });
+
+  // Resize state
+  const resizeRef = useRef<{ col: ColKey | null; startX: number; startWidth: number } | null>(null);
+
+  const onResizeMouseDown = useCallback((e: React.MouseEvent, col: ColKey) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeRef.current = { col, startX: e.clientX, startWidth: colWidths[col] ?? DEFAULT_COL_WIDTHS[col] ?? 100 };
+    const handle = e.currentTarget as HTMLElement;
+    handle.classList.add("resizing");
+
+    function onMove(ev: MouseEvent) {
+      if (!resizeRef.current) return;
+      const delta = ev.clientX - resizeRef.current.startX;
+      const newWidth = Math.max(50, resizeRef.current.startWidth + delta);
+      setColWidths((prev) => ({ ...prev, [resizeRef.current!.col!]: newWidth }));
+    }
+    function onUp() {
+      handle.classList.remove("resizing");
+      if (resizeRef.current) {
+        setColWidths((prev) => {
+          localStorage.setItem("productColWidths", JSON.stringify(prev));
+          return prev;
+        });
+      }
+      resizeRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [colWidths]);
 
   useEffect(() => { injectDragStyles(); }, []);
 
@@ -235,6 +297,45 @@ export default function ProductManager() {
       toast.success("CSV descargado");
     } catch (err: any) {
       toast.error(err.message || "Error al exportar");
+    }
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === pagedProducts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pagedProducts.map((p) => p.id)));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    if (!window.confirm(`¿Eliminar ${selectedIds.size} productos? Esta acción no se puede deshacer.`)) return;
+    try {
+      const res = await bulkDeleteProducts([...selectedIds]);
+      toast.success(`${res.deleted} productos eliminados`);
+      setSelectedIds(new Set());
+      loadProducts();
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar");
+    }
+  }
+
+  async function handleBulkDeactivate(active: boolean) {
+    try {
+      const res = await bulkPatchProducts([...selectedIds], { is_active: active });
+      toast.success(`${res.updated} productos ${active ? "activados" : "desactivados"}`);
+      setSelectedIds(new Set());
+      loadProducts();
+    } catch (err: any) {
+      toast.error(err.message || "Error al actualizar");
     }
   }
 
@@ -478,19 +579,39 @@ export default function ProductManager() {
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div style={styles.bulkBar}>
+          <span style={styles.bulkCount}>{selectedIds.size} seleccionados</span>
+          <button style={styles.bulkBtn} onClick={() => handleBulkDeactivate(false)}>Desactivar</button>
+          <button style={styles.bulkBtn} onClick={() => handleBulkDeactivate(true)}>Activar</button>
+          <button style={{ ...styles.bulkBtn, ...styles.bulkDeleteBtn }} onClick={handleBulkDelete}>Eliminar</button>
+          <button style={styles.bulkCancelBtn} onClick={() => setSelectedIds(new Set())}>Cancelar</button>
+        </div>
+      )}
+
       {/* Table */}
       <div style={styles.tableWrap}>
         <table style={styles.table}>
           <thead>
             <tr>
+              <th style={styles.thCheck}>
+                <input
+                  type="checkbox"
+                  className="pm-cb"
+                  checked={pagedProducts.length > 0 && selectedIds.size === pagedProducts.length}
+                  onChange={toggleSelectAll}
+                />
+              </th>
               {displayCols.map((key) => {
                 const def = colDef(key);
                 const hl = cellHighlight(key);
+                const w = colWidths[key];
                 return (
                   <th
                     key={key}
                     className="pm-th-drag"
-                    style={{ ...styles.thSort, textAlign: def.align, ...hl }}
+                    style={{ ...styles.thSort, textAlign: def.align, ...hl, width: w, minWidth: w, maxWidth: w, position: "relative" }}
                     draggable
                     onClick={() => handleSort(key)}
                     onDragStart={(e) => onDragStart(e, key)}
@@ -500,6 +621,10 @@ export default function ProductManager() {
                     onDrop={(e) => onDrop(e, key)}
                   >
                     {def.label}{sortIndicator(key)}
+                    <div
+                      className="pm-resize-handle"
+                      onMouseDown={(e) => onResizeMouseDown(e, key)}
+                    />
                   </th>
                 );
               })}
@@ -507,7 +632,20 @@ export default function ProductManager() {
           </thead>
           <tbody>
             {pagedProducts.map((p) => (
-              <tr key={p.id} style={styles.tr} onClick={() => setSelected(p)}>
+              <tr
+                key={p.id}
+                className={selectedIds.has(p.id) ? "pm-row-selected" : undefined}
+                style={styles.tr}
+                onClick={() => setSelected(p)}
+              >
+                <td style={styles.tdCheck} onClick={(e) => { e.stopPropagation(); toggleSelect(p.id); }}>
+                  <input
+                    type="checkbox"
+                    className="pm-cb"
+                    checked={selectedIds.has(p.id)}
+                    onChange={() => toggleSelect(p.id)}
+                  />
+                </td>
                 {displayCols.map((key) => renderCell(p, key))}
               </tr>
             ))}
@@ -718,6 +856,59 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "center",
     color: "#94a3b8",
     padding: 40,
+  },
+  thCheck: {
+    padding: "10px 8px",
+    width: 36,
+    background: "#f8fafc",
+    borderBottom: "2px solid #e2e8f0",
+    textAlign: "center" as const,
+  },
+  tdCheck: {
+    padding: "8px 8px",
+    width: 36,
+    textAlign: "center" as const,
+    verticalAlign: "middle",
+  },
+  bulkBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    background: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  bulkCount: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#1e40af",
+    marginRight: 4,
+  },
+  bulkBtn: {
+    padding: "5px 12px",
+    borderRadius: 6,
+    border: "1px solid #93c5fd",
+    background: "#fff",
+    color: "#1d4ed8",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 600,
+  },
+  bulkDeleteBtn: {
+    border: "1px solid #fca5a5",
+    color: "#dc2626",
+  },
+  bulkCancelBtn: {
+    padding: "5px 12px",
+    borderRadius: 6,
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#64748b",
+    cursor: "pointer",
+    fontSize: 13,
+    marginLeft: "auto",
   },
   paginationBar: {
     display: "flex",
