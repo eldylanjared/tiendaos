@@ -4,8 +4,10 @@ import Cart from "@/components/POS/Cart";
 import PaymentModal from "@/components/POS/PaymentModal";
 import Receipt from "@/components/POS/Receipt";
 import WeightInputModal from "@/components/POS/WeightInputModal";
+import PriceInputModal from "@/components/POS/PriceInputModal";
 import { useCart } from "@/hooks/useCart";
 import { useBarcode } from "@/hooks/useBarcode";
+import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { getByBarcode, searchProducts } from "@/services/api";
 import type { Product, Sale, BarcodeLookupResult } from "@/types";
 import toast from "react-hot-toast";
@@ -63,9 +65,11 @@ interface Props {
 
 export default function Terminal({ storeName }: Props) {
   const cart = useCart();
+  const { isOnline, cacheProducts, getCachedProducts } = useOfflineMode();
   const [showPayment, setShowPayment] = useState(false);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [weightProduct, setWeightProduct] = useState<Product | null>(null);
+  const [variosProduct, setVariosProduct] = useState<Product | null>(null);
   const [showAllProducts, setShowAllProducts] = useState(false);
 
   // Shared products state so starring in "Todos" updates "Favoritos" instantly
@@ -74,7 +78,15 @@ export default function Terminal({ storeName }: Props) {
   useEffect(() => { injectTerminalStyles(); }, []);
 
   useEffect(() => {
-    searchProducts("", 100).then(setProducts).catch(() => {});
+    searchProducts("", 100)
+      .then((p) => { setProducts(p); cacheProducts(p); })
+      .catch(() => {
+        const cached = getCachedProducts();
+        if (cached.length) {
+          setProducts(cached);
+          toast("Modo sin conexión — usando productos guardados", { icon: "📶" });
+        }
+      });
   }, []);
 
   const handleBarcodeScan = useCallback(
@@ -85,6 +97,11 @@ export default function Terminal({ storeName }: Props) {
 
         if (product.sell_by_weight) {
           setWeightProduct(product);
+          return;
+        }
+
+        if (product.name.toLowerCase().trim() === "varios") {
+          setVariosProduct(product);
           return;
         }
 
@@ -104,12 +121,28 @@ export default function Terminal({ storeName }: Props) {
 
   useBarcode(handleBarcodeScan);
 
+  function isVarios(product: Product) {
+    return product.name.toLowerCase().trim() === "varios";
+  }
+
   function handleSelectProduct(product: Product) {
     if (product.sell_by_weight) {
       setWeightProduct(product);
       return;
     }
+    if (isVarios(product)) {
+      setVariosProduct(product);
+      return;
+    }
     cart.addProduct(product);
+  }
+
+  function handleVariosConfirm(price: number) {
+    if (variosProduct) {
+      cart.addProduct(variosProduct, 1, 1, price);
+      toast.success(`Varios $${price.toFixed(2)} agregado`);
+      setVariosProduct(null);
+    }
   }
 
   function handleWeightConfirm(weight: number) {
@@ -131,6 +164,12 @@ export default function Terminal({ storeName }: Props) {
   }
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+    {!isOnline && (
+      <div style={styles.offlineBanner}>
+        📶 Sin conexión — modo local activo
+      </div>
+    )}
     <div className="tos-terminal">
       <div className="tos-terminal-products">
         <div style={styles.panelHeader}>
@@ -191,11 +230,29 @@ export default function Terminal({ storeName }: Props) {
           onClose={() => setWeightProduct(null)}
         />
       )}
+
+      {variosProduct && (
+        <PriceInputModal
+          product={variosProduct}
+          onConfirm={handleVariosConfirm}
+          onClose={() => setVariosProduct(null)}
+        />
+      )}
+    </div>
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  offlineBanner: {
+    background: "#fef08a",
+    color: "#713f12",
+    textAlign: "center",
+    padding: "6px 12px",
+    fontSize: 13,
+    fontWeight: 600,
+    borderBottom: "1px solid #fde047",
+  },
   panelHeader: {
     display: "flex",
     gap: 0,
