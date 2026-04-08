@@ -150,7 +150,13 @@ const ProductRow = memo(function ProductRow({
       onClick={() => onSelect(product)}
     >
       <td style={tdCheckStyle} onClick={(e) => { e.stopPropagation(); onToggle(product.id); }}>
-        <input type="checkbox" className="pm-cb" checked={selected} onChange={() => onToggle(product.id)} />
+        <input
+          type="checkbox"
+          className="pm-cb"
+          checked={selected}
+          onChange={(e) => { e.stopPropagation(); onToggle(product.id); }}
+          onClick={(e) => e.stopPropagation()}
+        />
       </td>
       {displayCols.map((key) => renderCell(product, key))}
     </tr>
