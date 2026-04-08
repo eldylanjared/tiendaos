@@ -1,3 +1,20 @@
+export interface Supplier {
+  id: string;
+  name: string;
+  rfc: string;
+  address: string;
+  phone: string;
+  extra_phone: string;
+  contact_name: string;
+  extra_contact_name: string;
+  picture_url: string;
+  avg_weekly_purchase: number;
+  notes: string;
+  product_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -26,6 +43,7 @@ export interface Product {
   name: string;
   description: string;
   category_id: string | null;
+  supplier_id: string | null;
   price: number;
   cost: number;
   stock: number;

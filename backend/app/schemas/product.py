@@ -75,6 +75,7 @@ class ProductBase(BaseModel):
     name: str
     description: str = ""
     category_id: str | None = None
+    supplier_id: str | None = None
     price: float
     cost: float = 0.0
     min_stock: int = 5
@@ -92,6 +93,7 @@ class ProductUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     category_id: str | None = None
+    supplier_id: str | None = None
     price: float | None = None
     cost: float | None = None
     stock: int | None = None

@@ -9,8 +9,9 @@ import {
   getProduct,
   getCategories,
   uploadProductImage,
+  getSuppliers,
 } from "@/services/api";
-import type { Product, Category } from "@/types";
+import type { Product, Category, Supplier } from "@/types";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -27,6 +28,7 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
     name: product?.name ?? "",
     description: product?.description ?? "",
     category_id: product?.category_id ?? "",
+    supplier_id: product?.supplier_id ?? "",
     price: product?.price ?? 0,
     cost: product?.cost ?? 0,
     stock: product?.stock ?? 0,
@@ -35,6 +37,7 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [imagePreview, setImagePreview] = useState<string>(product?.image_url || "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -53,6 +56,7 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
 
   useEffect(() => {
     getCategories().then(setCategories).catch(() => {});
+    getSuppliers().then(setSuppliers).catch(() => {});
   }, []);
 
   function setField(field: string, value: unknown) {
@@ -77,6 +81,7 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
     try {
       const payload: Record<string, unknown> = { ...form };
       if (!payload.category_id) delete payload.category_id;
+      if (!payload.supplier_id) delete payload.supplier_id;
 
       let savedProduct: Product;
       if (isEdit) {
@@ -184,6 +189,19 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
             <option value="">Sin categoria</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </label>
+        <label style={styles.label}>
+          Proveedor
+          <select
+            style={styles.input}
+            value={form.supplier_id}
+            onChange={(e) => setField("supplier_id", e.target.value)}
+          >
+            <option value="">Sin proveedor</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
         </label>

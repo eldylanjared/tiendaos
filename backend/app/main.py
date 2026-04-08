@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
 from app.models import Store, User  # noqa: F401 — registers all models with Base
-from app.routers import auth, products, sales, stores, ai, admin, pricechecker, reports, finance, chat, tickets
+from app.routers import auth, products, sales, stores, ai, admin, pricechecker, reports, finance, chat, tickets, suppliers
 from app.services.auth import hash_password
 
 settings = get_settings()
@@ -68,6 +68,7 @@ app.include_router(reports.router)
 app.include_router(finance.router)
 app.include_router(tickets.router)
 app.include_router(chat.router)
+app.include_router(suppliers.router)
 
 
 @app.get("/api/health")

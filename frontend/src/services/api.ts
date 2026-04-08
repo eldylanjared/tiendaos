@@ -499,3 +499,33 @@ export function deleteTicket(ticketId: string) {
 export function getTicketEmployees() {
   return request<{ id: string; full_name: string; role: string }[]>("/tickets/employees");
 }
+
+// Suppliers
+import type { Supplier } from "@/types";
+
+export function getSuppliers() {
+  return request<Supplier[]>("/suppliers");
+}
+
+export function createSupplier(data: Partial<Supplier>) {
+  return request<Supplier>("/suppliers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateSupplier(id: string, data: Partial<Supplier>) {
+  return request<Supplier>(`/suppliers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteSupplier(id: string) {
+  return request<{ ok: boolean }>(`/suppliers/${id}`, { method: "DELETE" });
+}
+
+export function uploadSupplierImage(id: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const token = localStorage.getItem("token");
+  return fetch(`/api/suppliers/${id}/image`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  }).then((r) => r.json()) as Promise<{ picture_url: string }>;
+}
