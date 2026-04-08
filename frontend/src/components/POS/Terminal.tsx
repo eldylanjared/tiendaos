@@ -78,7 +78,7 @@ export default function Terminal({ storeName }: Props) {
   useEffect(() => { injectTerminalStyles(); }, []);
 
   useEffect(() => {
-    searchProducts("", 100)
+    searchProducts("", 5000)
       .then((p) => { setProducts(p); cacheProducts(p); })
       .catch(() => {
         const cached = getCachedProducts();

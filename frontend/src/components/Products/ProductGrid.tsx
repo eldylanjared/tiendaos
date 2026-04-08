@@ -27,7 +27,7 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
 
   const loadProducts = useCallback((q: string) => {
     setLoading(true);
-    searchProducts(q, 100)
+    searchProducts(q, 5000)
       .then((p) => setProducts(p))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -36,6 +36,8 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
   function handleSearch(val: string) {
     setSearch(val);
     clearTimeout(debounceRef.current);
+    // If externalProducts provided, filter client-side (works offline too)
+    if (externalProducts) return;
     debounceRef.current = setTimeout(() => loadProducts(val), 250);
   }
 
@@ -52,9 +54,16 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
     }
   }
 
-  const displayProducts = favoritesOnly
-    ? products.filter((p) => p.is_favorite)
+  const filtered = externalProducts && search
+    ? products.filter((p) =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.barcode?.toLowerCase().includes(search.toLowerCase())
+      )
     : products;
+
+  const displayProducts = favoritesOnly
+    ? filtered.filter((p) => p.is_favorite)
+    : filtered;
 
   return (
     <div style={S.container}>
