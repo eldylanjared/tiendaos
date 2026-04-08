@@ -33,8 +33,11 @@ class Settings(BaseSettings):
     ai_customer_insights: bool = False
 
     # Sync
-    cloud_api_url: str = ""
-    sync_interval_seconds: int = 60
+    cloud_api_url: str = ""          # e.g. https://dylanlopez.com/api
+    cloud_sync_user: str = "admin"   # cloud admin username
+    cloud_sync_password: str = ""    # cloud admin password
+    is_local_instance: bool = False  # set True on local installs
+    sync_interval_seconds: int = 300 # 5 minutes
 
     # Receipt Printer
     printer_type: str = "thermal"

@@ -21,6 +21,7 @@ class Sale(Base):
     change_given: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[str] = mapped_column(String(20), default="completed")  # completed, voided, pending
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     store: Mapped["Store"] = relationship("Store", back_populates="sales")
     user: Mapped["User"] = relationship("User", back_populates="sales")

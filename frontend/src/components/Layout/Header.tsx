@@ -173,6 +173,90 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
+interface SyncStatus {
+  pull_products: { last_synced_at: string | null; last_result: string };
+  push_sales: { last_synced_at: string | null; last_result: string };
+  pending_sales: number;
+}
+
+function SyncBadge({ isAdmin }: { isAdmin: boolean }) {
+  const [status, setStatus] = useState<SyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const load = () => {
+      const token = localStorage.getItem("token");
+      fetch("/api/sync/status", { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => d && setStatus(d))
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, [isAdmin]);
+
+  if (!isAdmin || !status) return null;
+
+  const hasError =
+    status.pull_products.last_result.startsWith("error") ||
+    status.push_sales.last_result.startsWith("error");
+  const hasPending = status.pending_sales > 0;
+  const skipped = status.pull_products.last_result === "" && status.push_sales.last_result === "";
+
+  const color = hasError ? "#ef4444" : hasPending ? "#f59e0b" : skipped ? "#94a3b8" : "#22c55e";
+  const tooltip = skipped
+    ? "Sync no configurado"
+    : hasError
+    ? "Error en sync"
+    : hasPending
+    ? `${status.pending_sales} ventas pendientes`
+    : "Sincronizado";
+
+  async function triggerSync() {
+    setSyncing(true);
+    const token = localStorage.getItem("token");
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+    try {
+      await fetch("/api/sync/now", { method: "POST", headers: { ...authHeader, "Content-Type": "application/json" }, body: "{}" });
+      const r = await fetch("/api/sync/status", { headers: authHeader });
+      if (r.ok) setStatus(await r.json());
+    } catch {}
+    setSyncing(false);
+  }
+
+  return (
+    <button
+      title={tooltip}
+      onClick={triggerSync}
+      disabled={syncing}
+      style={{
+        background: "transparent",
+        border: "none",
+        cursor: syncing ? "default" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+        padding: "4px 6px",
+        borderRadius: "6px",
+        fontSize: "11px",
+        color: "#64748b",
+      }}
+    >
+      <span style={{
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: color,
+        display: "inline-block",
+        animation: syncing ? "pulse 1s infinite" : undefined,
+      }} />
+      {hasPending ? status.pending_sales : ""}
+    </button>
+  );
+}
+
 export default function Header({ user, storeName, onLogout, view, onViewChange, locked }: Props) {
   const isAdminOrManager = user.role === "admin" || user.role === "manager";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -243,6 +327,7 @@ export default function Header({ user, storeName, onLogout, view, onViewChange, 
           </div>
         </div>
         <div className="tos-header-right">
+          <SyncBadge isAdmin={isAdminOrManager} />
           <span className="tos-user">
             {user.full_name}
             <span className="tos-role">{user.role}</span>

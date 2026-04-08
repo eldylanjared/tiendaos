@@ -220,12 +220,20 @@ def list_products(
     active_only: bool = Query(True),
     limit: int = Query(50, le=5000),
     offset: int = Query(0),
+    updated_since: str | None = Query(None, description="ISO datetime — return only products updated after this time"),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     q = db.query(Product)
     if active_only:
         q = q.filter(Product.is_active == True)
+    if updated_since:
+        try:
+            from datetime import datetime
+            since_dt = datetime.fromisoformat(updated_since.replace("Z", "+00:00"))
+            q = q.filter(Product.updated_at >= since_dt)
+        except ValueError:
+            pass
     if search:
         # Also search pack barcodes
         pack_product_ids = (
