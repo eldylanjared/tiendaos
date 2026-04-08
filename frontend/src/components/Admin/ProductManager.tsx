@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { searchProducts, exportProductsCsv, importProductsCsv, bulkDeleteProducts, bulkPatchProducts } from "@/services/api";
 import ProductForm from "@/components/Admin/ProductForm";
 import type { Product } from "@/types";
@@ -379,7 +379,7 @@ export default function ProductManager() {
   const sortIndicator = (key: ColKey) =>
     sortKey === key ? (sortDir === "asc" ? " \u25B2" : " \u25BC") : "";
 
-  const sortedProducts = [...products].sort((a, b) => {
+  const sortedProducts = useMemo(() => [...products].sort((a, b) => {
     const dir = sortDir === "asc" ? 1 : -1;
     switch (sortKey) {
       case "name": return dir * a.name.localeCompare(b.name);
@@ -399,19 +399,20 @@ export default function ProductManager() {
       case "created_at": return dir * (a.created_at || "").localeCompare(b.created_at || "");
       default: return 0;
     }
-  });
+  }), [products, sortKey, sortDir]);
 
   const totalPages = pageSize > 0 ? Math.ceil(sortedProducts.length / pageSize) : 1;
-  const pagedProducts = pageSize > 0
+  const pagedProducts = useMemo(() => pageSize > 0
     ? sortedProducts.slice(page * pageSize, (page + 1) * pageSize)
-    : sortedProducts;
+    : sortedProducts,
+  [sortedProducts, page, pageSize]);
 
   // Visible columns in user-defined order
-  const displayCols = colOrder.filter((k) => {
+  const displayCols = useMemo(() => colOrder.filter((k) => {
     const def = colDef(k);
-    if (!def.toggleable) return true; // name, barcode always shown
+    if (!def.toggleable) return true;
     return visibleCols.has(k);
-  });
+  }), [colOrder, visibleCols]);
 
   function cellHighlight(key: ColKey): React.CSSProperties {
     if (key === dragSourceCol) return { background: "#dbeafe", opacity: 0.5 };

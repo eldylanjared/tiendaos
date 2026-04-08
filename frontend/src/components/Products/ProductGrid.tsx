@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { searchProducts, getCategories, toggleFavorite } from "@/services/api";
 import type { Product, Category } from "@/types";
 import toast from "react-hot-toast";
@@ -54,16 +54,15 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
     }
   }
 
-  const filtered = externalProducts && search
-    ? products.filter((p) =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.barcode?.toLowerCase().includes(search.toLowerCase())
-      )
-    : products;
-
-  const displayProducts = favoritesOnly
-    ? filtered.filter((p) => p.is_favorite)
-    : filtered;
+  const displayProducts = useMemo(() => {
+    const base = externalProducts && search
+      ? products.filter((p) =>
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.barcode?.toLowerCase().includes(search.toLowerCase())
+        )
+      : products;
+    return favoritesOnly ? base.filter((p) => p.is_favorite) : base;
+  }, [products, search, externalProducts, favoritesOnly]);
 
   return (
     <div style={S.container}>
