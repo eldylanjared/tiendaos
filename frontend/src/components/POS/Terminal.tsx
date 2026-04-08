@@ -78,14 +78,15 @@ export default function Terminal({ storeName }: Props) {
   useEffect(() => { injectTerminalStyles(); }, []);
 
   useEffect(() => {
+    // Show cache instantly, then refresh in background
+    const cached = getCachedProducts();
+    if (cached.length) setProducts(cached);
+
     searchProducts("", 5000)
       .then((p) => { setProducts(p); cacheProducts(p); })
       .catch(() => {
-        const cached = getCachedProducts();
-        if (cached.length) {
-          setProducts(cached);
-          toast("Modo sin conexión — usando productos guardados", { icon: "📶" });
-        }
+        if (!cached.length) return;
+        toast("Modo sin conexión — usando productos guardados", { icon: "📶" });
       });
   }, []);
 

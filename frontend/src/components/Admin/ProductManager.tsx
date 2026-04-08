@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { searchProducts, exportProductsCsv, importProductsCsv, bulkDeleteProducts, bulkPatchProducts } from "@/services/api";
 import ProductForm from "@/components/Admin/ProductForm";
 import type { Product } from "@/types";
@@ -132,6 +132,33 @@ function injectDragStyles() {
   `;
   document.head.appendChild(style);
 }
+
+const ProductRow = memo(function ProductRow({
+  product, selected, displayCols, onSelect, onToggle, renderCell,
+}: {
+  product: Product;
+  selected: boolean;
+  displayCols: ColKey[];
+  onSelect: (p: Product) => void;
+  onToggle: (id: string) => void;
+  renderCell: (p: Product, key: ColKey) => React.ReactNode;
+}) {
+  return (
+    <tr
+      className={selected ? "pm-row-selected" : undefined}
+      style={rowStyle}
+      onClick={() => onSelect(product)}
+    >
+      <td style={tdCheckStyle} onClick={(e) => { e.stopPropagation(); onToggle(product.id); }}>
+        <input type="checkbox" className="pm-cb" checked={selected} onChange={() => onToggle(product.id)} />
+      </td>
+      {displayCols.map((key) => renderCell(product, key))}
+    </tr>
+  );
+});
+
+const rowStyle: React.CSSProperties = { cursor: "pointer", borderBottom: "1px solid #f1f5f9" };
+const tdCheckStyle: React.CSSProperties = { padding: "8px 8px", width: 36, textAlign: "center", verticalAlign: "middle" };
 
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -633,22 +660,15 @@ export default function ProductManager() {
           </thead>
           <tbody>
             {pagedProducts.map((p) => (
-              <tr
+              <ProductRow
                 key={p.id}
-                className={selectedIds.has(p.id) ? "pm-row-selected" : undefined}
-                style={styles.tr}
-                onClick={() => setSelected(p)}
-              >
-                <td style={styles.tdCheck} onClick={(e) => { e.stopPropagation(); toggleSelect(p.id); }}>
-                  <input
-                    type="checkbox"
-                    className="pm-cb"
-                    checked={selectedIds.has(p.id)}
-                    onChange={() => toggleSelect(p.id)}
-                  />
-                </td>
-                {displayCols.map((key) => renderCell(p, key))}
-              </tr>
+                product={p}
+                selected={selectedIds.has(p.id)}
+                displayCols={displayCols}
+                onSelect={setSelected}
+                onToggle={toggleSelect}
+                renderCell={renderCell}
+              />
             ))}
             {products.length === 0 && (
               <tr>
