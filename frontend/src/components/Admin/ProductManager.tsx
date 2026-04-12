@@ -392,14 +392,7 @@ export default function ProductManager() {
     }
   }
 
-  if (showCreate) {
-    return <ProductForm onSave={handleSaved} onCancel={() => setShowCreate(false)} />;
-  }
-
-  if (selected) {
-    return <ProductForm product={selected} onSave={handleSaved} onCancel={() => setSelected(null)} />;
-  }
-
+  // All hooks must run before any early returns (Rules of Hooks)
   function handleSort(key: ColKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -446,6 +439,15 @@ export default function ProductManager() {
     if (!def.toggleable) return true;
     return visibleCols.has(k);
   }), [colOrder, visibleCols]);
+
+  // Early returns after all hooks
+  if (showCreate) {
+    return <ProductForm onSave={handleSaved} onCancel={() => setShowCreate(false)} />;
+  }
+
+  if (selected) {
+    return <ProductForm product={selected} onSave={handleSaved} onCancel={() => setSelected(null)} />;
+  }
 
   function cellHighlight(key: ColKey): React.CSSProperties {
     if (key === dragSourceCol) return { background: "#dbeafe", opacity: 0.5 };
