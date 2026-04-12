@@ -426,7 +426,7 @@ export default function ProductManager() {
         return dir * ca.localeCompare(cb);
       }
       case "image": return dir * ((a.image_url ? 1 : 0) - (b.image_url ? 1 : 0));
-      case "packs": return dir * (a.barcodes.length - b.barcodes.length);
+      case "packs": return dir * ((a.barcodes?.length ?? 0) - (b.barcodes?.length ?? 0));
       case "sell_by_weight": return dir * ((a.sell_by_weight ? 1 : 0) - (b.sell_by_weight ? 1 : 0));
       case "updated_at": return dir * (a.updated_at || "").localeCompare(b.updated_at || "");
       case "created_at": return dir * (a.created_at || "").localeCompare(b.created_at || "");
@@ -501,7 +501,7 @@ export default function ProductManager() {
       case "packs":
         return (
           <td key={key} style={{ ...styles.td, textAlign: "center", ...hl }}>
-            {p.barcodes.length > 0 ? <span style={styles.packTag}>{p.barcodes.length}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
+            {(p.barcodes?.length ?? 0) > 0 ? <span style={styles.packTag}>{p.barcodes.length}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
           </td>
         );
       case "sell_by_weight":

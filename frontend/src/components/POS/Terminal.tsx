@@ -7,7 +7,7 @@ import WeightInputModal from "@/components/POS/WeightInputModal";
 import PriceInputModal from "@/components/POS/PriceInputModal";
 import { useCart } from "@/hooks/useCart";
 import { useBarcode } from "@/hooks/useBarcode";
-import { useOfflineMode } from "@/hooks/useOfflineMode";
+import { useIsOnline } from "@/hooks/useOfflineSync";
 import { getByBarcode, searchProducts } from "@/services/api";
 import type { Product, Sale, BarcodeLookupResult } from "@/types";
 import toast from "react-hot-toast";
@@ -65,7 +65,7 @@ interface Props {
 
 export default function Terminal({ storeName }: Props) {
   const cart = useCart();
-  const { isOnline, cacheProducts, getCachedProducts } = useOfflineMode();
+  const isOnline = useIsOnline();
   const [showPayment, setShowPayment] = useState(false);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [weightProduct, setWeightProduct] = useState<Product | null>(null);
@@ -78,14 +78,10 @@ export default function Terminal({ storeName }: Props) {
   useEffect(() => { injectTerminalStyles(); }, []);
 
   useEffect(() => {
-    // Show cache instantly, then refresh in background
-    const cached = getCachedProducts();
-    if (cached.length) setProducts(cached);
-
+    // searchProducts auto-caches on success and falls back to IndexedDB when offline
     searchProducts("", 5000)
-      .then((p) => { setProducts(p); cacheProducts(p); })
+      .then((p) => setProducts(p))
       .catch(() => {
-        if (!cached.length) return;
         toast("Modo sin conexión — usando productos guardados", { icon: "📶" });
       });
   }, []);

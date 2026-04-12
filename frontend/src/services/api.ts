@@ -19,6 +19,13 @@ import type {
   FinanceSummary,
   FinanceCategories,
 } from "@/types";
+import {
+  cacheProducts as idbCacheProducts,
+  getCachedProducts,
+  getCachedProductByBarcode,
+  queuePendingSale,
+  type PendingSale,
+} from "@/services/offlineDB";
 
 const BASE = "/api";
 
@@ -122,13 +129,36 @@ export function getMe() {
 }
 
 // Products
-export function searchProducts(search: string = "", limit = 50) {
+export async function searchProducts(search: string = "", limit = 50): Promise<Product[]> {
   const params = new URLSearchParams({ search, limit: String(limit) });
-  return request<Product[]>(`/products?${params}`);
+  try {
+    const results = await request<Product[]>(`/products?${params}`);
+    // Cache in background — don't block the return
+    idbCacheProducts(results).catch(() => {});
+    return results;
+  } catch (err) {
+    if (!navigator.onLine) {
+      const all = await getCachedProducts().catch(() => [] as Product[]);
+      if (!search) return all.slice(0, limit);
+      const q = search.toLowerCase();
+      return all
+        .filter((p) => p.name.toLowerCase().includes(q) || p.barcode.includes(q))
+        .slice(0, limit);
+    }
+    throw err;
+  }
 }
 
-export function getByBarcode(barcode: string) {
-  return request<BarcodeLookupResult>(`/products/barcode/${barcode}`);
+export async function getByBarcode(barcode: string): Promise<BarcodeLookupResult> {
+  try {
+    return await request<BarcodeLookupResult>(`/products/barcode/${barcode}`);
+  } catch (err) {
+    if (!navigator.onLine) {
+      const product = await getCachedProductByBarcode(barcode).catch(() => null);
+      if (product) return { product, pack: null };
+    }
+    throw err;
+  }
 }
 
 export function getProduct(productId: string) {
@@ -250,15 +280,44 @@ export function deleteVolumePromo(productId: string, promoId: string) {
 }
 
 // Sales
-export function createSale(
+export async function createSale(
   items: SaleItemCreate[],
   payment_method: string,
   cash_received: number
-) {
-  return request<Sale>("/sales", {
-    method: "POST",
-    body: JSON.stringify({ items, payment_method, cash_received }),
-  });
+): Promise<Sale> {
+  try {
+    return await request<Sale>("/sales", {
+      method: "POST",
+      body: JSON.stringify({ items, payment_method, cash_received }),
+    });
+  } catch (err) {
+    if (!navigator.onLine) {
+      const pending: PendingSale = {
+        id: crypto.randomUUID(),
+        items,
+        payment_method,
+        cash_received,
+        created_at: new Date().toISOString(),
+      };
+      await queuePendingSale(pending);
+      // Return a local-only sale so the POS can show a receipt
+      return {
+        id: pending.id,
+        store_id: "",
+        user_id: "",
+        items: [],
+        subtotal: 0,
+        tax: 0,
+        total: cash_received,
+        payment_method,
+        cash_received,
+        change_given: 0,
+        status: "pending_sync",
+        created_at: pending.created_at,
+      } as Sale;
+    }
+    throw err;
+  }
 }
 
 export function getDailySummary(date?: string) {

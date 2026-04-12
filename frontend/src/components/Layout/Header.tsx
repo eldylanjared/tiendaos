@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { User } from "@/types";
+import type { OfflineSyncState } from "@/hooks/useOfflineSync";
 
 type View = "terminal" | "admin" | "price-checker" | "finance" | "personal-finance" | "tickets" | "chat";
 
@@ -10,6 +11,40 @@ interface Props {
   view: View;
   onViewChange?: (view: View) => void;
   locked?: boolean;
+  offlineSync?: OfflineSyncState;
+}
+
+function OfflineBadge({ state }: { state: OfflineSyncState }) {
+  if (state.isOnline && !state.isSyncing && state.pendingCount === 0) return null;
+
+  if (!state.isOnline) {
+    return (
+      <span style={{
+        background: "#ef4444", color: "#fff", fontSize: 11,
+        fontWeight: 600, padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap",
+      }}>
+        Sin conexión{state.pendingCount > 0 ? ` · ${state.pendingCount} pend.` : ""}
+      </span>
+    );
+  }
+  if (state.isSyncing) {
+    return (
+      <span style={{
+        background: "#22c55e", color: "#fff", fontSize: 11,
+        fontWeight: 600, padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap",
+      }}>
+        Sincronizando...
+      </span>
+    );
+  }
+  return (
+    <span style={{
+      background: "#f59e0b", color: "#fff", fontSize: 11,
+      fontWeight: 600, padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap",
+    }}>
+      {state.pendingCount} pendientes
+    </span>
+  );
 }
 
 // Inject responsive CSS once
@@ -257,7 +292,7 @@ function SyncBadge({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-export default function Header({ user, storeName, onLogout, view, onViewChange, locked }: Props) {
+export default function Header({ user, storeName, onLogout, view, onViewChange, locked, offlineSync }: Props) {
   const isAdminOrManager = user.role === "admin" || user.role === "manager";
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -327,6 +362,7 @@ export default function Header({ user, storeName, onLogout, view, onViewChange, 
           </div>
         </div>
         <div className="tos-header-right">
+          {offlineSync && <OfflineBadge state={offlineSync} />}
           <SyncBadge isAdmin={isAdminOrManager} />
           <span className="tos-user">
             {user.full_name}
