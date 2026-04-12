@@ -252,7 +252,7 @@ function SyncBadge({ isAdmin }: { isAdmin: boolean }) {
   async function triggerSync() {
     setSyncing(true);
     const token = localStorage.getItem("token");
-    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
       await fetch("/api/sync/now", { method: "POST", headers: { ...authHeader, "Content-Type": "application/json" }, body: "{}" });
       const r = await fetch("/api/sync/status", { headers: authHeader });
