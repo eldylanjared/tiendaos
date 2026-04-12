@@ -28,10 +28,10 @@ export function useCart() {
   const [items, setItems] = useState<CartItem[]>([]);
 
   const addProduct = useCallback((product: Product, qty = 1, packUnits = 1, packPrice: number | null = null) => {
-    const key = `${product.id}-${packUnits}`;
+    const key = `${product.id}-${packUnits}-${packPrice ?? ""}`;
     setItems((prev) => {
       let updated: CartItem[];
-      const idx = prev.findIndex((i) => `${i.product.id}-${i.pack_units}` === key);
+      const idx = prev.findIndex((i) => `${i.product.id}-${i.pack_units}-${i.pack_price ?? ""}` === key);
       if (idx >= 0) {
         updated = [...prev];
         const item = { ...updated[idx] };
@@ -56,10 +56,10 @@ export function useCart() {
     });
   }, []);
 
-  const cartKey = (item: CartItem) => `${item.product.id}-${item.pack_units}`;
+  const cartKey = (item: CartItem) => `${item.product.id}-${item.pack_units}-${item.pack_price ?? ""}`;
 
-  const updateQuantity = useCallback((productId: string, packUnits: number, quantity: number) => {
-    const key = `${productId}-${packUnits}`;
+  const updateQuantity = useCallback((productId: string, packUnits: number, packPrice: number | null, quantity: number) => {
+    const key = `${productId}-${packUnits}-${packPrice ?? ""}`;
     if (quantity <= 0) {
       setItems((prev) => applyVolumePromos(prev.filter((i) => cartKey(i) !== key)));
       return;
@@ -77,8 +77,8 @@ export function useCart() {
     );
   }, []);
 
-  const removeItem = useCallback((productId: string, packUnits: number) => {
-    const key = `${productId}-${packUnits}`;
+  const removeItem = useCallback((productId: string, packUnits: number, packPrice: number | null) => {
+    const key = `${productId}-${packUnits}-${packPrice ?? ""}`;
     setItems((prev) => applyVolumePromos(prev.filter((i) => cartKey(i) !== key)));
   }, []);
 
@@ -95,6 +95,7 @@ export function useCart() {
         quantity: i.quantity,
         discount_percent: i.discount_percent,
         pack_units: i.pack_units,
+        ...(i.pack_price !== null ? { unit_price: i.pack_price } : {}),
       })),
     [items]
   );

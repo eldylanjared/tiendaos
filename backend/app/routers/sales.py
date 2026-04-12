@@ -46,15 +46,16 @@ def create_sale(
 
         stock_decrement = int(item_data.quantity * item_data.pack_units)
 
-        # Determine unit price
-        if item_data.pack_units > 1:
-            # Pack item — unit_price is the pack price (set by frontend from pack info)
+        # Determine unit price — frontend override takes priority (e.g. Varios custom price)
+        if item_data.unit_price is not None:
+            unit_price = item_data.unit_price
+        elif item_data.pack_units > 1:
             unit_price = product.price * item_data.pack_units
         else:
             unit_price = product.price
 
-        # Apply volume promo for single-unit items (bundle pricing)
-        if item_data.pack_units == 1 and not product.sell_by_weight:
+        # Apply volume promo for single-unit items (bundle pricing) — only when no price override
+        if item_data.unit_price is None and item_data.pack_units == 1 and not product.sell_by_weight:
             total_qty = int(product_units.get(item_data.product_id, 0))
             promos = (
                 db.query(VolumePromo)

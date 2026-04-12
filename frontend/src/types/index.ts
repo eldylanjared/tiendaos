@@ -85,6 +85,7 @@ export interface SaleItemCreate {
   quantity: number;
   discount_percent: number;
   pack_units: number;
+  unit_price?: number;
 }
 
 export interface SaleItem {

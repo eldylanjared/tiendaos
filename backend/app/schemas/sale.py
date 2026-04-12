@@ -8,6 +8,7 @@ class SaleItemCreate(BaseModel):
     quantity: float = 1
     discount_percent: float = 0.0
     pack_units: int = 1
+    unit_price: Optional[float] = None  # override product price (e.g. Varios custom price)
 
 
 class SaleItemResponse(BaseModel):
