@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     # Receipt Printer
     printer_type: str = "thermal"
     printer_name: str = "default"
+    printer_port: str = ""  # e.g. /dev/usb/lp0 (USB) or 192.168.1.100:9100 (network)
 
     # Business
     currency: str = "MXN"
