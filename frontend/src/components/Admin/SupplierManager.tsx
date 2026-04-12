@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, uploadSupplierImage } from "@/services/api";
+import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, uploadSupplierImage, getSupplierProducts } from "@/services/api";
 import type { Supplier } from "@/types";
 import toast from "react-hot-toast";
+
+type SupplierProduct = { id: string; name: string; barcode: string; price: number; stock: number; is_active: boolean };
 
 const EMPTY: Partial<Supplier> = {
   name: "", rfc: "", address: "", phone: "", extra_phone: "",
@@ -18,6 +20,8 @@ export default function SupplierManager() {
   const [imagePreview, setImagePreview] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [productsMap, setProductsMap] = useState<Record<string, SupplierProduct[]>>({});
 
   useEffect(() => { load(); }, []);
 
@@ -230,15 +234,53 @@ export default function SupplierManager() {
             </div>
 
             <div style={S.cardStats}>
-              <div style={S.stat}>
+              <button
+                style={S.statBtn}
+                onClick={async () => {
+                  if (expandedId === s.id) { setExpandedId(null); return; }
+                  setExpandedId(s.id);
+                  if (!productsMap[s.id]) {
+                    try {
+                      const prods = await getSupplierProducts(s.id);
+                      setProductsMap((p) => ({ ...p, [s.id]: prods }));
+                    } catch { setProductsMap((p) => ({ ...p, [s.id]: [] })); }
+                  }
+                }}
+              >
                 <span style={S.statLabel}>Productos</span>
-                <span style={S.statValue}>{s.product_count}</span>
-              </div>
+                <span style={S.statValue}>{s.product_count} {expandedId === s.id ? "▲" : "▼"}</span>
+              </button>
               <div style={S.stat}>
                 <span style={S.statLabel}>Compra/semana</span>
                 <span style={S.statValue}>${s.avg_weekly_purchase.toLocaleString("es-MX")}</span>
               </div>
             </div>
+
+            {expandedId === s.id && (
+              <div style={S.productList}>
+                {!productsMap[s.id] ? (
+                  <div style={S.productRow}>Cargando...</div>
+                ) : productsMap[s.id].length === 0 ? (
+                  <div style={S.productRow}>Sin productos asignados</div>
+                ) : (
+                  productsMap[s.id].map((p) => (
+                    <div key={p.id} style={S.productRow}>
+                      <div style={S.productName}>
+                        {!p.is_active && <span style={S.inactiveBadge}>inactivo</span>}
+                        {p.name}
+                      </div>
+                      <div style={S.productMeta}>
+                        <span style={S.productBarcode}>{p.barcode}</span>
+                        <span style={S.productPrice}>${p.price.toFixed(2)}</span>
+                        <span style={{ ...S.productStock, color: p.stock <= 0 ? "#dc2626" : "#16a34a" }}>
+                          {p.stock} uds
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
 
             <div style={S.cardActions}>
               <button style={S.editBtn} onClick={() => openEdit(s)}>Editar</button>
@@ -272,6 +314,15 @@ const S: Record<string, React.CSSProperties> = {
   detail: { fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   cardStats: { display: "flex", gap: 8 },
   stat: { flex: 1, background: "#f8fafc", borderRadius: 8, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2 },
+  statBtn: { flex: 1, background: "#f8fafc", borderRadius: 8, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, border: "none", cursor: "pointer", textAlign: "left" as const },
+  productList: { background: "#f8fafc", borderRadius: 8, overflow: "hidden", border: "1px solid #e2e8f0" },
+  productRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", borderBottom: "1px solid #f1f5f9", fontSize: 12, gap: 8 },
+  productName: { flex: 1, color: "#1e293b", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, display: "flex", alignItems: "center", gap: 6 },
+  productMeta: { display: "flex", gap: 8, alignItems: "center", flexShrink: 0 },
+  productBarcode: { color: "#94a3b8", fontFamily: "monospace", fontSize: 11 },
+  productPrice: { color: "#0f172a", fontWeight: 600 },
+  productStock: { fontSize: 11, fontWeight: 600 },
+  inactiveBadge: { fontSize: 9, fontWeight: 700, background: "#fca5a5", color: "#7f1d1d", padding: "1px 5px", borderRadius: 4, textTransform: "uppercase" as const },
   statLabel: { fontSize: 10, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase" },
   statValue: { fontSize: 15, fontWeight: 700, color: "#0f172a" },
   cardActions: { display: "flex", gap: 6 },

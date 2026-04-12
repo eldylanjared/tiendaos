@@ -108,6 +108,29 @@ async def upload_supplier_image(
     return {"picture_url": supplier.picture_url}
 
 
+@router.get("/{supplier_id}/products")
+def list_supplier_products(
+    supplier_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    products = db.query(Product).filter(Product.supplier_id == supplier_id).order_by(Product.name).all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "barcode": p.barcode,
+            "price": p.price,
+            "stock": p.stock,
+            "is_active": p.is_active,
+        }
+        for p in products
+    ]
+
+
 @router.get("/image/{filename}")
 def get_supplier_image(filename: str):
     filepath = os.path.join(SUPPLIER_IMG_DIR, filename)

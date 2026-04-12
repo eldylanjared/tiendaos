@@ -578,6 +578,12 @@ export function deleteSupplier(id: string) {
   return request<{ ok: boolean }>(`/suppliers/${id}`, { method: "DELETE" });
 }
 
+export function getSupplierProducts(id: string) {
+  return request<{ id: string; name: string; barcode: string; price: number; stock: number; is_active: boolean }[]>(
+    `/suppliers/${id}/products`
+  );
+}
+
 export function uploadSupplierImage(id: string, file: File) {
   const form = new FormData();
   form.append("file", file);

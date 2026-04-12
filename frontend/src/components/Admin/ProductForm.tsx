@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   createProduct,
   updateProduct,
@@ -38,6 +38,9 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierOpen, setSupplierOpen] = useState(false);
+  const supplierRef = useRef<HTMLDivElement>(null);
   const [imagePreview, setImagePreview] = useState<string>(product?.image_url || "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -56,7 +59,41 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
 
   useEffect(() => {
     getCategories().then(setCategories).catch(() => {});
-    getSuppliers().then(setSuppliers).catch(() => {});
+    getSuppliers().then((list) => {
+      setSuppliers(list);
+      if (product?.supplier_id) {
+        const found = list.find((s) => s.id === product.supplier_id);
+        if (found) setSupplierSearch(found.name);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Close supplier dropdown on outside click
+  useEffect(() => {
+    if (!supplierOpen) return;
+    function onDown(e: MouseEvent) {
+      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) {
+        setSupplierOpen(false);
+        // If nothing selected, clear search
+        if (!form.supplier_id) setSupplierSearch("");
+        else {
+          const found = suppliers.find((s) => s.id === form.supplier_id);
+          setSupplierSearch(found?.name ?? "");
+        }
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [supplierOpen, form.supplier_id, suppliers]);
+
+  const filteredSuppliers = suppliers.filter((s) =>
+    s.name.toLowerCase().includes(supplierSearch.toLowerCase())
+  );
+
+  const selectSupplier = useCallback((id: string, name: string) => {
+    setField("supplier_id", id);
+    setSupplierSearch(name);
+    setSupplierOpen(false);
   }, []);
 
   function setField(field: string, value: unknown) {
@@ -194,16 +231,52 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         </label>
         <label style={styles.label}>
           Proveedor
-          <select
-            style={styles.input}
-            value={form.supplier_id}
-            onChange={(e) => setField("supplier_id", e.target.value)}
-          >
-            <option value="">Sin proveedor</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+          <div ref={supplierRef} style={{ position: "relative" }}>
+            <input
+              style={{ ...styles.input, width: "100%", boxSizing: "border-box" as const }}
+              value={supplierSearch}
+              placeholder="Buscar proveedor..."
+              onChange={(e) => {
+                setSupplierSearch(e.target.value);
+                setSupplierOpen(true);
+                if (!e.target.value) setField("supplier_id", "");
+              }}
+              onFocus={() => setSupplierOpen(true)}
+            />
+            {form.supplier_id && (
+              <button
+                style={styles.supplierClear}
+                onClick={() => { setField("supplier_id", ""); setSupplierSearch(""); }}
+                tabIndex={-1}
+              >✕</button>
+            )}
+            {supplierOpen && (
+              <div style={styles.supplierDropdown}>
+                <div
+                  style={styles.supplierOption}
+                  onMouseDown={() => selectSupplier("", "")}
+                >
+                  <span style={{ color: "#94a3b8" }}>Sin proveedor</span>
+                </div>
+                {filteredSuppliers.length === 0 && (
+                  <div style={{ ...styles.supplierOption, color: "#94a3b8" }}>Sin resultados</div>
+                )}
+                {filteredSuppliers.map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      ...styles.supplierOption,
+                      ...(s.id === form.supplier_id ? styles.supplierOptionActive : {}),
+                    }}
+                    onMouseDown={() => selectSupplier(s.id, s.name)}
+                  >
+                    {s.name}
+                    {s.rfc && <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 6 }}>{s.rfc}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </label>
         <label style={styles.label}>
           Descripcion
@@ -409,6 +482,46 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 600,
     whiteSpace: "nowrap",
+  },
+  supplierDropdown: {
+    position: "absolute" as const,
+    top: "100%",
+    left: 0,
+    right: 0,
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 8,
+    boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+    zIndex: 200,
+    maxHeight: 220,
+    overflowY: "auto" as const,
+    marginTop: 2,
+  },
+  supplierOption: {
+    padding: "8px 12px",
+    fontSize: 13,
+    cursor: "pointer",
+    color: "#0f172a",
+    display: "flex",
+    alignItems: "center",
+    borderBottom: "1px solid #f1f5f9",
+  },
+  supplierOptionActive: {
+    background: "#eff6ff",
+    fontWeight: 600,
+    color: "#2563eb",
+  },
+  supplierClear: {
+    position: "absolute" as const,
+    right: 8,
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#94a3b8",
+    fontSize: 12,
+    padding: 2,
   },
   actions: { display: "flex", gap: 8, marginTop: 16 },
   cancelBtn: {
