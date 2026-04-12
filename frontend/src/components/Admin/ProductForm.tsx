@@ -21,7 +21,9 @@ interface Props {
 }
 
 export default function ProductForm({ product, onSave, onCancel }: Props) {
-  const isEdit = !!product;
+  // After creation, savedProduct is set so pack/promo sections become available
+  const [savedProduct, setSavedProduct] = useState<Product | undefined>(product);
+  const isEdit = !!savedProduct;
 
   const [form, setForm] = useState({
     barcode: product?.barcode ?? "",
@@ -47,6 +49,7 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
 
   const [barcodes, setBarcodes] = useState(product?.barcodes ?? []);
   const [promos, setPromos] = useState(product?.volume_promos ?? []);
+  const [justCreated, setJustCreated] = useState(false);
 
   const [newBarcode, setNewBarcode] = useState("");
   const [newUnits, setNewUnits] = useState(1);
@@ -120,20 +123,28 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
       if (!payload.category_id) delete payload.category_id;
       if (!payload.supplier_id) delete payload.supplier_id;
 
-      let savedProduct: Product;
+      let result: Product;
       if (isEdit) {
-        savedProduct = await updateProduct(product.id, payload);
+        result = await updateProduct(savedProduct.id, payload);
       } else {
-        savedProduct = await createProduct(payload as any);
+        result = await createProduct(payload as any);
       }
 
       // Upload image if selected
       if (imageFile) {
-        await uploadProductImage(savedProduct.id, imageFile);
+        await uploadProductImage(result.id, imageFile);
+        setImageFile(null);
       }
 
-      toast.success(isEdit ? "Producto actualizado" : "Producto creado");
-      onSave();
+      if (isEdit) {
+        toast.success("Producto actualizado");
+        onSave();
+      } else {
+        // Switch to edit mode so user can add pack barcodes and promos
+        setSavedProduct(result);
+        setJustCreated(true);
+        toast.success("Producto creado — agrega packs y promos si necesitas");
+      }
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -142,10 +153,10 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleAddBarcode() {
-    if (!product || !newBarcode || newUnits < 1 || newPackPrice <= 0) return;
+    if (!savedProduct || !newBarcode || newUnits < 1 || newPackPrice <= 0) return;
     try {
-      await addProductBarcode(product.id, newBarcode, newUnits, newPackPrice);
-      const updated = await getProduct(product.id);
+      await addProductBarcode(savedProduct.id, newBarcode, newUnits, newPackPrice);
+      const updated = await getProduct(savedProduct.id);
       setBarcodes(updated.barcodes);
       setNewBarcode("");
       setNewUnits(1);
@@ -157,9 +168,9 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleDeleteBarcode(barcodeId: string) {
-    if (!product) return;
+    if (!savedProduct) return;
     try {
-      await deleteProductBarcode(product.id, barcodeId);
+      await deleteProductBarcode(savedProduct.id, barcodeId);
       setBarcodes((prev) => prev.filter((b) => b.id !== barcodeId));
       toast.success("Barcode eliminado");
     } catch (err: any) {
@@ -168,10 +179,10 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleAddPromo() {
-    if (!product || newMinUnits < 1 || newPromoPrice <= 0) return;
+    if (!savedProduct || newMinUnits < 1 || newPromoPrice <= 0) return;
     try {
-      await addVolumePromo(product.id, newMinUnits, newPromoPrice);
-      const updated = await getProduct(product.id);
+      await addVolumePromo(savedProduct.id, newMinUnits, newPromoPrice);
+      const updated = await getProduct(savedProduct.id);
       setPromos(updated.volume_promos);
       setNewMinUnits(1);
       setNewPromoPrice(0);
@@ -182,9 +193,9 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleDeletePromo(promoId: string) {
-    if (!product) return;
+    if (!savedProduct) return;
     try {
-      await deleteVolumePromo(product.id, promoId);
+      await deleteVolumePromo(savedProduct.id, promoId);
       setPromos((prev) => prev.filter((p) => p.id !== promoId));
       toast.success("Promo eliminada");
     } catch (err: any) {
@@ -196,7 +207,9 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
     <div style={styles.container}>
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={onCancel}>&larr; Volver</button>
-        <h2 style={styles.title}>{isEdit ? "Editar Producto" : "Nuevo Producto"}</h2>
+        <h2 style={styles.title}>
+          {justCreated ? "Producto creado" : isEdit ? "Editar Producto" : "Nuevo Producto"}
+        </h2>
       </div>
 
       <div style={styles.grid}>
@@ -210,11 +223,11 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         </label>
         <label style={styles.label}>
           Precio
-          <input style={styles.input} type="number" step="0.01" value={form.price} onChange={(e) => setField("price", parseFloat(e.target.value) || 0)} />
+          <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.price} onChange={(e) => setField("price", parseFloat(e.target.value) || 0)} />
         </label>
         <label style={styles.label}>
           Costo
-          <input style={styles.input} type="number" step="0.01" value={form.cost} onChange={(e) => setField("cost", parseFloat(e.target.value) || 0)} />
+          <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.cost} onChange={(e) => setField("cost", parseFloat(e.target.value) || 0)} />
         </label>
         <label style={styles.label}>
           Categoria
@@ -362,10 +375,16 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
       )}
 
       <div style={styles.actions}>
-        <button style={styles.cancelBtn} onClick={onCancel}>Cancelar</button>
-        <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
-          {saving ? "Guardando..." : "Guardar"}
-        </button>
+        {justCreated ? (
+          <button style={styles.saveBtn} onClick={onSave}>Listo</button>
+        ) : (
+          <>
+            <button style={styles.cancelBtn} onClick={onCancel}>Cancelar</button>
+            <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
+              {saving ? "Guardando..." : "Guardar"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -397,6 +416,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     outline: "none",
   },
+  noSpin: {
+    MozAppearance: "textfield",
+    WebkitAppearance: "none",
+  } as React.CSSProperties,
   checkLabel: {
     display: "flex",
     alignItems: "center",

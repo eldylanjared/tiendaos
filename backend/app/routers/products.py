@@ -244,7 +244,7 @@ def list_products(
         pack_ids = [pid for (pid,) in pack_product_ids]
         q = q.filter(
             (Product.name.ilike(f"%{search}%"))
-            | (Product.barcode == search)
+            | (Product.barcode.ilike(f"%{search}%"))
             | (Product.id.in_(pack_ids))
         )
     if category_id:
