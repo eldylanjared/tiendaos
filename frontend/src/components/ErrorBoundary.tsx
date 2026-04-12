@@ -8,17 +8,19 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  componentStack: string | null;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  state: State = { hasError: false, error: null, componentStack: null };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, componentStack: null };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary]", error, info.componentStack);
+    this.setState({ componentStack: info.componentStack ?? null });
   }
 
   render() {
@@ -28,9 +30,12 @@ export default class ErrorBoundary extends Component<Props, State> {
         <div style={styles.container}>
           <p style={styles.title}>Algo salió mal</p>
           <p style={styles.message}>{this.state.error?.message}</p>
+          {this.state.componentStack && (
+            <pre style={styles.stack}>{this.state.componentStack.slice(0, 800)}</pre>
+          )}
           <button
             style={styles.btn}
-            onClick={() => this.setState({ hasError: false, error: null })}
+            onClick={() => this.setState({ hasError: false, error: null, componentStack: null })}
           >
             Reintentar
           </button>
@@ -51,6 +56,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   title: { margin: 0, fontSize: 16, fontWeight: 600, color: "#ef4444" },
   message: { margin: 0, fontSize: 13, color: "#64748b", fontFamily: "monospace" },
+  stack: { margin: 0, fontSize: 11, color: "#94a3b8", fontFamily: "monospace", whiteSpace: "pre-wrap", maxWidth: 600 },
   btn: {
     padding: "8px 16px",
     borderRadius: 6,
