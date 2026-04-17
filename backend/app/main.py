@@ -84,6 +84,15 @@ def health():
     return {"status": "ok", "store_id": settings.store_id, "store_name": settings.store_name}
 
 
+@app.get("/api/store/info")
+def store_info():
+    return {
+        "name": settings.store_name,
+        "address": getattr(settings, "store_address", ""),
+        "rfc": getattr(settings, "store_rfc", ""),
+    }
+
+
 # Serve the React frontend on local installs (no nginx).
 # Must be mounted LAST so API routes take priority.
 _dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
