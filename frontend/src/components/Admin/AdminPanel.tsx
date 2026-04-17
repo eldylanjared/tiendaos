@@ -6,8 +6,9 @@ import SalesHistory from "@/components/Admin/SalesHistory";
 import EmployeeManager from "@/components/Admin/EmployeeManager";
 import InventoryManager from "@/components/Admin/InventoryManager";
 import SupplierManager from "@/components/Admin/SupplierManager";
+import SistemaPanel from "@/components/Admin/SistemaPanel";
 
-type Tab = "dashboard" | "reports" | "products" | "sales" | "employees" | "inventory" | "suppliers";
+type Tab = "dashboard" | "reports" | "products" | "sales" | "employees" | "inventory" | "suppliers" | "sistema";
 
 const tabs: { key: Tab; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
@@ -17,6 +18,7 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "employees", label: "Empleados" },
   { key: "inventory", label: "Inventario" },
   { key: "suppliers", label: "Proveedores" },
+  { key: "sistema", label: "Sistema" },
 ];
 
 export default function AdminPanel() {
@@ -45,6 +47,7 @@ export default function AdminPanel() {
         {activeTab === "employees" && <EmployeeManager />}
         {activeTab === "inventory" && <InventoryManager />}
         {activeTab === "suppliers" && <SupplierManager />}
+        {activeTab === "sistema" && <SistemaPanel />}
       </div>
     </div>
   );
