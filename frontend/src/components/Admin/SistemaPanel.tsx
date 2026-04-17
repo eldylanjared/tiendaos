@@ -120,12 +120,12 @@ export default function SistemaPanel() {
             <ol style={styles.stepList}>
               <li>Descarga el instalador</li>
               <li>Abre PowerShell como <strong>Administrador</strong></li>
-              <li>Ejecuta:<br /><code style={styles.inlineCode}>Set-ExecutionPolicy Bypass -Scope Process -Force; .\install_windows.ps1</code></li>
+              <li>Ejecuta en dos lineas:<br /><code style={styles.inlineCode}>Set-ExecutionPolicy Bypass -Scope Process -Force</code><br /><code style={styles.inlineCode}>.\tiendaos-install.ps1</code></li>
               <li>Edita el archivo <code>.env</code> que se abre automaticamente</li>
               <li>El sistema arranca y se registra para iniciar con Windows</li>
             </ol>
             <a href="/install_windows.ps1" download="tiendaos-install.ps1" style={styles.downloadBtn}>
-              Descargar install_windows.ps1
+              Descargar tiendaos-install.ps1
             </a>
           </div>
 
@@ -134,12 +134,12 @@ export default function SistemaPanel() {
             <ol style={styles.stepList}>
               <li>Descarga el instalador</li>
               <li>Abre Terminal</li>
-              <li>Ejecuta:<br /><code style={styles.inlineCode}>bash ~/Downloads/install_mac.sh</code></li>
+              <li>Ejecuta:<br /><code style={styles.inlineCode}>bash ~/Downloads/tiendaos-install-mac.sh</code></li>
               <li>Edita <code>~/tiendaos/backend/.env</code> con los datos de la tienda</li>
               <li>El sistema arranca automaticamente al iniciar sesion</li>
             </ol>
             <a href="/install_mac.sh" download="tiendaos-install-mac.sh" style={styles.downloadBtn}>
-              Descargar install_mac.sh
+              Descargar tiendaos-install-mac.sh
             </a>
           </div>
 
@@ -152,7 +152,7 @@ export default function SistemaPanel() {
               <li>El sistema corre como servicio systemd</li>
             </ol>
             <a href="/install.sh" download="tiendaos-install.sh" style={styles.downloadBtn}>
-              Descargar install.sh
+              Descargar tiendaos-install.sh
             </a>
           </div>
         </div>
