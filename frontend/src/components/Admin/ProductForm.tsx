@@ -57,8 +57,8 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   const [newUnits, setNewUnits] = useState(1);
   const [newPackPrice, setNewPackPrice] = useState(0);
 
-  const [newMinUnits, setNewMinUnits] = useState(1);
-  const [newPromoPrice, setNewPromoPrice] = useState(0);
+  const [newMinUnits, setNewMinUnits] = useState("");
+  const [newPromoPrice, setNewPromoPrice] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -191,13 +191,15 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleAddPromo() {
-    if (!savedProduct || newMinUnits < 1 || newPromoPrice <= 0) return;
+    const units = parseInt(newMinUnits);
+    const price = parseFloat(newPromoPrice);
+    if (!savedProduct || !units || units < 1 || !price || price <= 0) return;
     try {
-      await addVolumePromo(savedProduct.id, newMinUnits, newPromoPrice);
+      await addVolumePromo(savedProduct.id, units, price);
       const updated = await getProduct(savedProduct.id);
       setPromos(updated.volume_promos);
-      setNewMinUnits(1);
-      setNewPromoPrice(0);
+      setNewMinUnits("");
+      setNewPromoPrice("");
       toast.success("Promo de volumen agregada");
     } catch (err: any) {
       toast.error(err.message);
@@ -386,8 +388,8 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
             </div>
           ))}
           <div style={styles.subForm}>
-            <input style={styles.smallInput} type="number" placeholder="Cantidad" value={newMinUnits} onChange={(e) => setNewMinUnits(parseInt(e.target.value) || 1)} />
-            <input style={styles.smallInput} type="number" step="0.01" placeholder="Precio total paquete" value={newPromoPrice || ""} onChange={(e) => setNewPromoPrice(parseFloat(e.target.value) || 0)} />
+            <input style={styles.smallInput} type="text" inputMode="numeric" placeholder="Cantidad" value={newMinUnits} onChange={(e) => setNewMinUnits(e.target.value.replace(/[^0-9]/g, ""))} />
+            <input style={styles.smallInput} type="text" inputMode="decimal" placeholder="Precio total paquete" value={newPromoPrice} onChange={(e) => setNewPromoPrice(e.target.value.replace(/[^0-9.]/g, ""))} />
             <button style={styles.addSubBtn} onClick={handleAddPromo}>Agregar</button>
           </div>
         </div>
