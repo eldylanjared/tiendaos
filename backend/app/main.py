@@ -1,8 +1,10 @@
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
@@ -80,3 +82,10 @@ app.include_router(receipts.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok", "store_id": settings.store_id, "store_name": settings.store_name}
+
+
+# Serve the React frontend on local installs (no nginx).
+# Must be mounted LAST so API routes take priority.
+_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if _dist.exists():
+    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="static")

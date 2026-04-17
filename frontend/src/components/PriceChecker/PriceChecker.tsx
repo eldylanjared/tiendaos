@@ -4,6 +4,18 @@ import { priceCheck, getByBarcode } from "@/services/api";
 import { isLoggedIn } from "@/store/auth";
 import type { PriceCheckResult } from "@/types";
 
+async function priceCheckWithFallback(barcode: string): Promise<{ result: PriceCheckResult; offline: boolean }> {
+  try {
+    const result = await priceCheck(barcode);
+    return { result, offline: false };
+  } catch {
+    // Cloud unreachable — try local backend
+    const r = await fetch(`http://localhost:8000/api/price-check/${barcode}`);
+    if (!r.ok) throw new Error("not found");
+    return { result: await r.json(), offline: true };
+  }
+}
+
 interface Props {
   storeName: string;
 }
@@ -14,6 +26,7 @@ export default function PriceChecker({ storeName }: Props) {
   const [product, setProduct] = useState<PriceCheckResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const resetTimer = useCallback(() => {
@@ -36,7 +49,7 @@ export default function PriceChecker({ storeName }: Props) {
       setError("");
       try {
         if (isLoggedIn()) {
-          // Authenticated mode — use barcode lookup
+          // Authenticated mode — use barcode lookup (cloud only, no kiosk fallback needed)
           const result = await getByBarcode(barcode);
           const p = result.product;
           setProduct({
@@ -49,10 +62,12 @@ export default function PriceChecker({ storeName }: Props) {
               ? { barcode: result.pack.barcode, units: result.pack.units, pack_price: result.pack.pack_price }
               : null,
           });
+          setIsOffline(false);
         } else {
-          // Kiosk mode — public endpoint
-          const result = await priceCheck(barcode);
+          // Kiosk mode — try cloud, fallback to localhost if offline
+          const { result, offline } = await priceCheckWithFallback(barcode);
           setProduct(result);
+          setIsOffline(offline);
         }
         resetTimer();
       } catch {
@@ -75,6 +90,9 @@ export default function PriceChecker({ storeName }: Props) {
         <div className="pc-header">
           <span className="pc-logo">TiendaOS</span>
           <span className="pc-subtitle">Consulta de Precios</span>
+          {isOffline && (
+            <span className="pc-offline-badge">Sin internet — modo local</span>
+          )}
         </div>
 
         <div className="pc-content">
@@ -171,6 +189,7 @@ const responsiveCSS = `
 }
 .pc-logo { font-weight: 700; font-size: clamp(14px, 2.5vw, 20px); }
 .pc-subtitle { font-size: clamp(11px, 2vw, 16px); color: #94a3b8; }
+.pc-offline-badge { margin-left: auto; font-size: clamp(10px, 1.5vw, 13px); background: #f59e0b; color: #fff; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
 
 .pc-content {
   flex: 1;

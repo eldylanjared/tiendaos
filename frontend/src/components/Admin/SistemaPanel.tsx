@@ -159,13 +159,48 @@ export default function SistemaPanel() {
 
         <div style={{ marginTop: 20 }}>
           <div style={styles.cardTitle}>Configuracion requerida (.env)</div>
-          <p style={styles.muted}>Despues de instalar, configura estos valores para la tienda:</p>
-          <pre style={styles.codeBlock}>{`IS_LOCAL_INSTANCE=true
-STORE_ID=tienda-1          # ID unico por tienda
-STORE_NAME=Sucursal Centro # Nombre de esta tienda
-CLOUD_API_URL=https://dylanlopez.com/api
-CLOUD_SYNC_USER=admin
-CLOUD_SYNC_PASSWORD=tu_password`}</pre>
+          <p style={styles.muted}>Despues de instalar, edita el archivo <code>.env</code> en la carpeta del backend. Cada variable se explica abajo:</p>
+
+          <table style={styles.envTable}>
+            <thead>
+              <tr>
+                <th style={styles.envTh}>Variable</th>
+                <th style={styles.envTh}>Ejemplo</th>
+                <th style={styles.envTh}>Que es</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["IS_LOCAL_INSTANCE", "true", "Activa el modo local + sincronizacion con la nube. Siempre true en tiendas."],
+                ["STORE_ID", "tienda-centro", "ID unico para esta tienda. Sin espacios. Ej: tienda-1, tienda-norte."],
+                ["STORE_NAME", "Sucursal Centro", "Nombre que aparece en recibos y reportes."],
+                ["CLOUD_API_URL", "https://dylanlopez.com/api", "URL del servidor central. No cambiar."],
+                ["CLOUD_SYNC_USER", "admin", "Usuario del servidor central para sincronizar. Usa 'admin' o crea uno especifico."],
+                ["CLOUD_SYNC_PASSWORD", "••••••••", "Contrasena del usuario en el servidor central. Ver instrucciones abajo."],
+              ].map(([key, val, desc]) => (
+                <tr key={key}>
+                  <td style={styles.envKey}>{key}</td>
+                  <td style={styles.envVal}>{val}</td>
+                  <td style={styles.envDesc}>{desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div style={{ ...styles.infoItem, marginTop: 16 }}>
+            <div style={styles.infoHeader}>Como obtener el CLOUD_SYNC_PASSWORD</div>
+            <p style={styles.muted}>La contrasena es la del usuario <strong>admin</strong> en el servidor central (dylanlopez.com). Para verla o cambiarla:</p>
+            <ol style={styles.stepList}>
+              <li>Entra a <strong>dylanlopez.com</strong> → Admin → Empleados</li>
+              <li>Busca el usuario <strong>admin</strong> y cambia su contrasena</li>
+              <li>Usa esa misma contrasena como <code>CLOUD_SYNC_PASSWORD</code> en el .env de la tienda</li>
+              <li>Reinicia el servicio: <code>systemctl restart tiendaos</code> (Linux) o ejecuta el script de nuevo (Mac/Windows)</li>
+            </ol>
+            <p style={{ ...styles.muted, marginTop: 8 }}>
+              Tambien puedes crear un usuario dedicado para sincronizacion con rol <strong>admin</strong> y usar sus credenciales.
+              Esto es mas seguro que usar la cuenta admin principal.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -251,6 +286,43 @@ const styles: Record<string, React.CSSProperties> = {
   },
   osTitle: { fontWeight: 700, fontSize: 15, marginBottom: 10, color: "#1e293b" },
   stepList: { fontSize: 13, color: "#475569", paddingLeft: 18, margin: 0, lineHeight: 2 },
+  envTable: {
+    width: "100%",
+    borderCollapse: "collapse" as const,
+    fontSize: 13,
+    marginTop: 8,
+  },
+  envTh: {
+    textAlign: "left" as const,
+    padding: "6px 10px",
+    background: "#f1f5f9",
+    borderBottom: "1px solid #e2e8f0",
+    fontWeight: 600,
+    color: "#475569",
+  },
+  envKey: {
+    padding: "7px 10px",
+    fontFamily: "monospace",
+    fontSize: 12,
+    color: "#0f172a",
+    fontWeight: 600,
+    borderBottom: "1px solid #f1f5f9",
+    whiteSpace: "nowrap" as const,
+  },
+  envVal: {
+    padding: "7px 10px",
+    fontFamily: "monospace",
+    fontSize: 12,
+    color: "#2563eb",
+    borderBottom: "1px solid #f1f5f9",
+    whiteSpace: "nowrap" as const,
+  },
+  envDesc: {
+    padding: "7px 10px",
+    color: "#64748b",
+    borderBottom: "1px solid #f1f5f9",
+    lineHeight: 1.5,
+  },
   inlineCode: {
     fontFamily: "monospace",
     fontSize: 11,
