@@ -225,16 +225,36 @@ export default function ProductManager() {
 
   useEffect(() => { injectDragStyles(); }, []);
 
-  useEffect(() => {
-    setPage(0);
-    loadProducts();
-  }, [search]);
+  // Load all products once on mount — filter client-side for instant barcode search
+  useEffect(() => { loadProducts(); }, []);
+
+  // Reset page when search changes
+  useEffect(() => { setPage(0); }, [search]);
 
   async function loadProducts() {
     try {
-      const results = await searchProducts(search, 5000);
+      const results = await searchProducts("", 5000);
       setProducts(results);
     } catch { /* ignore */ }
+  }
+
+  // Client-side filter: name, main barcode, pack barcodes
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.barcode.includes(q) ||
+      p.barcodes?.some((b) => b.barcode.includes(q))
+    );
+  }, [products, search]);
+
+  // Barcode scanner sends Enter at end — if exactly one match, open it directly
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && filteredProducts.length === 1) {
+      setSelected(filteredProducts[0]);
+      setSearch("");
+    }
   }
 
   function handleSaved() {
@@ -405,7 +425,7 @@ export default function ProductManager() {
   const sortIndicator = (key: ColKey) =>
     sortKey === key ? (sortDir === "asc" ? " \u25B2" : " \u25BC") : "";
 
-  const sortedProducts = useMemo(() => [...products].sort((a, b) => {
+  const sortedProducts = useMemo(() => [...filteredProducts].sort((a, b) => {
     const dir = sortDir === "asc" ? 1 : -1;
     switch (sortKey) {
       case "name": return dir * a.name.localeCompare(b.name);
@@ -526,9 +546,10 @@ export default function ProductManager() {
       <div style={styles.toolbar}>
         <input
           style={styles.search}
-          placeholder="Buscar productos..."
+          placeholder="Buscar por nombre o codigo de barras..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
         />
         <button style={styles.addBtn} onClick={() => setShowCreate(true)}>
           + Nuevo
@@ -579,7 +600,9 @@ export default function ProductManager() {
 
       {/* Pagination bar */}
       <div style={styles.paginationBar}>
-        <span style={styles.totalCount}>{sortedProducts.length} productos</span>
+        <span style={styles.totalCount}>
+          {search ? `${sortedProducts.length} de ${products.length}` : `${products.length} productos`}
+        </span>
         <div style={styles.pageSizeWrap}>
           <span style={styles.pageSizeLabel}>Mostrar:</span>
           {[50, 100, 0].map((size) => (
