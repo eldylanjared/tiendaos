@@ -101,41 +101,71 @@ export default function SistemaPanel() {
 
       {/* Offline / hybrid info */}
       <div style={styles.card}>
-        <div style={styles.cardTitle}>Modo offline e instalacion local</div>
-        <div style={styles.infoGrid}>
-          <div style={styles.infoItem}>
-            <div style={styles.infoHeader}>Como funciona offline</div>
-            <ul style={styles.list}>
-              <li>El backend corre en tu computadora en <code>localhost:8000</code></li>
-              <li>Las ventas se guardan en SQLite local aunque no haya internet</li>
-              <li>Cuando regresa la conexion, se sincronizan automaticamente con la nube</li>
-              <li>Los productos se actualizan desde el servidor central</li>
-            </ul>
+        <div style={styles.cardTitle}>Como funciona el modo offline</div>
+        <ul style={styles.list}>
+          <li>El backend corre en la computadora de la tienda en <code>localhost:8000</code></li>
+          <li>Las ventas se guardan en SQLite local aunque no haya internet</li>
+          <li>Cuando regresa la conexion, se sincronizan automaticamente con la nube</li>
+          <li>Los productos y precios se actualizan desde el servidor central</li>
+        </ul>
+      </div>
+
+      {/* Installers */}
+      <div style={styles.card}>
+        <div style={styles.cardTitle}>Instalar en computadora de tienda</div>
+        <div style={styles.osGrid}>
+
+          <div style={styles.osCard}>
+            <div style={styles.osTitle}>Windows</div>
+            <ol style={styles.stepList}>
+              <li>Descarga el instalador</li>
+              <li>Abre PowerShell como <strong>Administrador</strong></li>
+              <li>Ejecuta:<br /><code style={styles.inlineCode}>Set-ExecutionPolicy Bypass -Scope Process -Force; .\install_windows.ps1</code></li>
+              <li>Edita el archivo <code>.env</code> que se abre automaticamente</li>
+              <li>El sistema arranca y se registra para iniciar con Windows</li>
+            </ol>
+            <a href="/install_windows.ps1" download="tiendaos-install.ps1" style={styles.downloadBtn}>
+              Descargar install_windows.ps1
+            </a>
           </div>
-          <div style={styles.infoItem}>
-            <div style={styles.infoHeader}>Instalar en una computadora de tienda</div>
-            <p style={styles.muted}>Descarga el instalador para Linux (Ubuntu/Debian):</p>
-            <a
-              href="/install.sh"
-              download="tiendaos-install.sh"
-              style={styles.downloadBtn}
-            >
+
+          <div style={styles.osCard}>
+            <div style={styles.osTitle}>Mac</div>
+            <ol style={styles.stepList}>
+              <li>Descarga el instalador</li>
+              <li>Abre Terminal</li>
+              <li>Ejecuta:<br /><code style={styles.inlineCode}>bash ~/Downloads/install_mac.sh</code></li>
+              <li>Edita <code>~/tiendaos/backend/.env</code> con los datos de la tienda</li>
+              <li>El sistema arranca automaticamente al iniciar sesion</li>
+            </ol>
+            <a href="/install_mac.sh" download="tiendaos-install-mac.sh" style={styles.downloadBtn}>
+              Descargar install_mac.sh
+            </a>
+          </div>
+
+          <div style={styles.osCard}>
+            <div style={styles.osTitle}>Linux (Ubuntu/Debian)</div>
+            <ol style={styles.stepList}>
+              <li>Abre Terminal</li>
+              <li>Ejecuta:<br /><code style={styles.inlineCode}>curl -fsSL https://dylanlopez.com/install.sh | bash</code></li>
+              <li>Edita <code>/opt/tiendaos/backend/.env</code></li>
+              <li>El sistema corre como servicio systemd</li>
+            </ol>
+            <a href="/install.sh" download="tiendaos-install.sh" style={styles.downloadBtn}>
               Descargar install.sh
             </a>
-            <p style={{ ...styles.muted, marginTop: 12 }}>
-              Luego ejecuta en la terminal:
-            </p>
-            <pre style={styles.codeBlock}>bash tiendaos-install.sh</pre>
           </div>
-          <div style={styles.infoItem}>
-            <div style={styles.infoHeader}>Configuracion necesaria (.env)</div>
-            <pre style={styles.codeBlock}>{`IS_LOCAL_INSTANCE=true
-STORE_ID=tienda-1
-STORE_NAME=Sucursal Centro
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <div style={styles.cardTitle}>Configuracion requerida (.env)</div>
+          <p style={styles.muted}>Despues de instalar, configura estos valores para la tienda:</p>
+          <pre style={styles.codeBlock}>{`IS_LOCAL_INSTANCE=true
+STORE_ID=tienda-1          # ID unico por tienda
+STORE_NAME=Sucursal Centro # Nombre de esta tienda
 CLOUD_API_URL=https://dylanlopez.com/api
 CLOUD_SYNC_USER=admin
 CLOUD_SYNC_PASSWORD=tu_password`}</pre>
-          </div>
         </div>
       </div>
     </div>
@@ -188,13 +218,10 @@ const styles: Record<string, React.CSSProperties> = {
     overflowY: "auto",
   },
   errorText: { color: "#dc2626", fontSize: 13, marginTop: 8 },
-  infoGrid: { display: "flex", flexDirection: "column", gap: 16 },
-  infoItem: {},
-  infoHeader: { fontWeight: 600, fontSize: 14, marginBottom: 6, color: "#1e293b" },
-  list: { fontSize: 13, color: "#475569", paddingLeft: 20, margin: 0, lineHeight: 1.8 },
+  list: { fontSize: 13, color: "#475569", paddingLeft: 20, margin: "6px 0 0", lineHeight: 1.8 },
   downloadBtn: {
     display: "inline-block",
-    marginTop: 8,
+    marginTop: 12,
     padding: "8px 16px",
     background: "#059669",
     color: "#fff",
@@ -211,5 +238,27 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "monospace",
     margin: "6px 0 0",
     whiteSpace: "pre-wrap",
+  },
+  osGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gap: 16,
+  },
+  osCard: {
+    border: "1px solid #e2e8f0",
+    borderRadius: 8,
+    padding: 16,
+  },
+  osTitle: { fontWeight: 700, fontSize: 15, marginBottom: 10, color: "#1e293b" },
+  stepList: { fontSize: 13, color: "#475569", paddingLeft: 18, margin: 0, lineHeight: 2 },
+  inlineCode: {
+    fontFamily: "monospace",
+    fontSize: 11,
+    background: "#f1f5f9",
+    padding: "2px 4px",
+    borderRadius: 3,
+    display: "inline-block",
+    marginTop: 4,
+    wordBreak: "break-all",
   },
 };
