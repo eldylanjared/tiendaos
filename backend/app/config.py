@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     # Store
     store_id: str = "store-1"
     store_name: str = "Tienda Centro"
+    store_address: str = ""
+    store_rfc: str = ""
 
     # Auth
     secret_key: str = "change-this-to-a-random-secret-key-at-least-32-chars"
