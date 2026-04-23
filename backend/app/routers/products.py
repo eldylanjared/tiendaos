@@ -252,6 +252,7 @@ def delete_category(
 def list_products(
     search: str = Query("", description="Search by name or barcode"),
     category_id: str | None = Query(None),
+    supplier_id: str | None = Query(None),
     active_only: bool = Query(True),
     limit: int = Query(50, le=5000),
     offset: int = Query(0),
@@ -284,6 +285,8 @@ def list_products(
         )
     if category_id:
         q = q.filter(Product.category_id == category_id)
+    if supplier_id:
+        q = q.filter(Product.supplier_id == supplier_id)
     return q.order_by(Product.name).offset(offset).limit(limit).all()
 
 
