@@ -1,170 +1,16 @@
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { searchProducts, exportProductsCsv, importProductsCsv, bulkDeleteProducts, bulkPatchProducts } from "@/services/api";
 import ProductForm from "@/components/Admin/ProductForm";
+import ProductTable from "@/components/Admin/ProductTable";
 import type { Product } from "@/types";
 import toast from "react-hot-toast";
-
-// Every column definition — "name" and "barcode" are always visible
-const ALL_COLUMNS = [
-  { key: "name", label: "Producto", toggleable: false, align: "left" as const },
-  { key: "barcode", label: "Codigo", toggleable: false, align: "left" as const },
-  { key: "price", label: "Precio", toggleable: true, default: true, align: "right" as const },
-  { key: "cost", label: "Costo", toggleable: true, default: false, align: "right" as const },
-  { key: "stock", label: "Stock", toggleable: true, default: true, align: "right" as const },
-  { key: "category", label: "Categoria", toggleable: true, default: false, align: "left" as const },
-  { key: "image", label: "Imagen", toggleable: true, default: false, align: "center" as const },
-  { key: "updated_at", label: "Modificado", toggleable: true, default: false, align: "left" as const },
-  { key: "created_at", label: "Creado", toggleable: true, default: false, align: "left" as const },
-  { key: "sell_by_weight", label: "Por peso", toggleable: true, default: false, align: "center" as const },
-  { key: "packs", label: "Packs", toggleable: true, default: true, align: "center" as const },
-] as const;
-
-type ColKey = (typeof ALL_COLUMNS)[number]["key"];
-type SortDir = "asc" | "desc";
-
-const DEFAULT_ORDER: ColKey[] = ALL_COLUMNS.map((c) => c.key);
-const TOGGLEABLE_COLS = ALL_COLUMNS.filter((c) => c.toggleable);
-
-function colDef(key: ColKey) {
-  return ALL_COLUMNS.find((c) => c.key === key)!;
-}
-
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtDate(d: string) {
-  if (!d) return "—";
-  const dt = new Date(d);
-  return dt.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function loadVisibleCols(): Set<ColKey> {
-  try {
-    const saved = localStorage.getItem("productCols");
-    if (saved) return new Set(JSON.parse(saved) as ColKey[]);
-  } catch { /* ignore */ }
-  return new Set(TOGGLEABLE_COLS.filter((c) => c.default).map((c) => c.key));
-}
-
-const DEFAULT_COL_WIDTHS: Partial<Record<ColKey, number>> = {
-  name: 220, barcode: 140, price: 90, cost: 90, stock: 70,
-  category: 120, image: 70, updated_at: 110, created_at: 110,
-  sell_by_weight: 80, packs: 70,
-};
-
-function loadColWidths(): Record<string, number> {
-  try {
-    const saved = localStorage.getItem("productColWidths");
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
-  return { ...DEFAULT_COL_WIDTHS };
-}
-
-function loadColOrder(): ColKey[] {
-  try {
-    const saved = localStorage.getItem("productColOrder");
-    if (saved) {
-      const order = JSON.parse(saved) as ColKey[];
-      // Ensure all columns are present (in case new ones were added)
-      const set = new Set(order);
-      for (const c of DEFAULT_ORDER) {
-        if (!set.has(c)) order.push(c);
-      }
-      return order.filter((k) => ALL_COLUMNS.some((c) => c.key === k));
-    }
-  } catch { /* ignore */ }
-  return [...DEFAULT_ORDER];
-}
-
-// Inject drag styles once
-let dragStyleInjected = false;
-function injectDragStyles() {
-  if (dragStyleInjected) return;
-  dragStyleInjected = true;
-  const style = document.createElement("style");
-  style.textContent = `
-    .pm-th-drag {
-      cursor: grab;
-      user-select: none;
-      transition: background 0.15s, transform 0.15s;
-    }
-    .pm-th-drag:active { cursor: grabbing; }
-    .pm-th-drag.dragging {
-      opacity: 0.35;
-      background: #dbeafe !important;
-      color: #2563eb !important;
-      transform: scale(0.95);
-    }
-    .pm-th-drag.drag-over-left {
-      box-shadow: inset 4px 0 0 #2563eb;
-      background: #eff6ff !important;
-    }
-    .pm-th-drag.drag-over-right {
-      box-shadow: inset -4px 0 0 #2563eb;
-      background: #eff6ff !important;
-    }
-    .pm-col-highlight {
-      background: #eff6ff !important;
-      transition: background 0.3s;
-    }
-    @keyframes pm-col-flash {
-      0% { background: #bfdbfe; }
-      100% { background: transparent; }
-    }
-    .pm-col-flash td, .pm-col-flash th {
-      animation: pm-col-flash 0.6s ease-out;
-    }
-    .pm-resize-handle {
-      position: absolute;
-      right: 0; top: 0; bottom: 0;
-      width: 6px;
-      cursor: col-resize;
-      z-index: 2;
-      user-select: none;
-    }
-    .pm-resize-handle:hover, .pm-resize-handle.resizing {
-      background: #2563eb44;
-    }
-    .pm-row-selected { background: #eff6ff !important; }
-    .pm-row-selected:hover { background: #dbeafe !important; }
-    .pm-cb { cursor: pointer; width: 16px; height: 16px; accent-color: #2563eb; }
-  `;
-  document.head.appendChild(style);
-}
-
-const ProductRow = memo(function ProductRow({
-  product, selected, displayCols, onSelect, onToggle, renderCell,
-}: {
-  product: Product;
-  selected: boolean;
-  displayCols: ColKey[];
-  onSelect: (p: Product) => void;
-  onToggle: (id: string) => void;
-  renderCell: (p: Product, key: ColKey) => React.ReactNode;
-}) {
-  return (
-    <tr
-      className={selected ? "pm-row-selected" : undefined}
-      style={rowStyle}
-      onClick={() => onSelect(product)}
-    >
-      <td style={tdCheckStyle} onClick={(e) => { e.stopPropagation(); onToggle(product.id); }}>
-        <input
-          type="checkbox"
-          className="pm-cb"
-          checked={selected}
-          onChange={(e) => { e.stopPropagation(); onToggle(product.id); }}
-          onClick={(e) => e.stopPropagation()}
-        />
-      </td>
-      {displayCols.map((key) => renderCell(product, key))}
-    </tr>
-  );
-});
-
-const rowStyle: React.CSSProperties = { cursor: "pointer", borderBottom: "1px solid #f1f5f9" };
-const tdCheckStyle: React.CSSProperties = { padding: "8px 8px", width: 36, textAlign: "center", verticalAlign: "middle" };
+import {
+  ColKey, SortDir,
+  TOGGLEABLE_COLS,
+  colDef, fmt, fmtDate,
+  loadVisibleCols, loadColWidths, loadColOrder, DEFAULT_COL_WIDTHS,
+  injectDragStyles, pmStyles,
+} from "./productManagerDefs";
 
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -185,50 +31,13 @@ export default function ProductManager() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [colWidths, setColWidths] = useState<Record<string, number>>(loadColWidths);
   const importRef = useRef<HTMLInputElement>(null);
-
-  // Drag state — not in React state to avoid re-renders during drag
   const dragRef = useRef<{ dragKey: ColKey | null; overKey: ColKey | null; side: "left" | "right" | null }>({
     dragKey: null, overKey: null, side: null,
   });
-
-  // Resize state
   const resizeRef = useRef<{ col: ColKey | null; startX: number; startWidth: number } | null>(null);
 
-  const onResizeMouseDown = useCallback((e: React.MouseEvent, col: ColKey) => {
-    e.preventDefault();
-    e.stopPropagation();
-    resizeRef.current = { col, startX: e.clientX, startWidth: colWidths[col] ?? DEFAULT_COL_WIDTHS[col] ?? 100 };
-    const handle = e.currentTarget as HTMLElement;
-    handle.classList.add("resizing");
-
-    function onMove(ev: MouseEvent) {
-      if (!resizeRef.current) return;
-      const delta = ev.clientX - resizeRef.current.startX;
-      const newWidth = Math.max(50, resizeRef.current.startWidth + delta);
-      setColWidths((prev) => ({ ...prev, [resizeRef.current!.col!]: newWidth }));
-    }
-    function onUp() {
-      handle.classList.remove("resizing");
-      if (resizeRef.current) {
-        setColWidths((prev) => {
-          localStorage.setItem("productColWidths", JSON.stringify(prev));
-          return prev;
-        });
-      }
-      resizeRef.current = null;
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    }
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  }, [colWidths]);
-
   useEffect(() => { injectDragStyles(); }, []);
-
-  // Load all products once on mount — filter client-side for instant barcode search
   useEffect(() => { loadProducts(); }, []);
-
-  // Reset page when search changes
   useEffect(() => { setPage(0); }, [search]);
 
   async function loadProducts() {
@@ -238,7 +47,7 @@ export default function ProductManager() {
     } catch { /* ignore */ }
   }
 
-  // Client-side filter: name, main barcode, pack barcodes
+  // --- Filtering & sorting ---
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return products;
@@ -249,81 +58,91 @@ export default function ProductManager() {
     );
   }, [products, search]);
 
-  // Barcode scanner sends Enter at end — if exactly one match, open it directly
-  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && filteredProducts.length === 1) {
-      setSelected(filteredProducts[0]);
-      setSearch("");
+  const sortedProducts = useMemo(() => [...filteredProducts].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    switch (sortKey) {
+      case "name":         return dir * a.name.localeCompare(b.name);
+      case "barcode":      return dir * a.barcode.localeCompare(b.barcode);
+      case "price":        return dir * (a.price - b.price);
+      case "cost":         return dir * (a.cost - b.cost);
+      case "stock":        return dir * (a.stock - b.stock);
+      case "category":     return dir * ((a.category?.name || "").localeCompare(b.category?.name || ""));
+      case "image":        return dir * ((a.image_url ? 1 : 0) - (b.image_url ? 1 : 0));
+      case "packs":        return dir * ((a.barcodes?.length ?? 0) - (b.barcodes?.length ?? 0));
+      case "sell_by_weight": return dir * ((a.sell_by_weight ? 1 : 0) - (b.sell_by_weight ? 1 : 0));
+      case "updated_at":   return dir * (a.updated_at || "").localeCompare(b.updated_at || "");
+      case "created_at":   return dir * (a.created_at || "").localeCompare(b.created_at || "");
+      default:             return 0;
     }
+  }), [filteredProducts, sortKey, sortDir]);
+
+  const totalPages = pageSize > 0 ? Math.ceil(sortedProducts.length / pageSize) : 1;
+  const pagedProducts = useMemo(() =>
+    pageSize > 0 ? sortedProducts.slice(page * pageSize, (page + 1) * pageSize) : sortedProducts,
+  [sortedProducts, page, pageSize]);
+
+  const displayCols = useMemo(() =>
+    colOrder.filter((k) => !colDef(k).toggleable || visibleCols.has(k)),
+  [colOrder, visibleCols]);
+
+  // --- Helpers passed to ProductTable ---
+  const cellHighlight = useCallback((key: ColKey): React.CSSProperties => {
+    if (key === dragSourceCol) return { background: "#dbeafe", opacity: 0.5 };
+    if (key === dragOverCol)   return { background: "#eff6ff" };
+    if (key === flashCol)      return { background: "#bfdbfe", transition: "background 0.6s ease-out" };
+    return {};
+  }, [dragSourceCol, dragOverCol, flashCol]);
+
+  const sortIndicator = (key: ColKey) => sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+
+  function handleSort(key: ColKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
   }
 
-  function handleSaved() {
-    setSelected(null);
-    setShowCreate(false);
-    loadProducts();
-  }
-
+  // --- Column visibility ---
   function toggleCol(key: ColKey) {
     setVisibleCols((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      next.has(key) ? next.delete(key) : next.add(key);
       localStorage.setItem("productCols", JSON.stringify([...next]));
       return next;
     });
   }
 
-  function saveColOrder(order: ColKey[]) {
-    setColOrder(order);
-    localStorage.setItem("productColOrder", JSON.stringify(order));
-  }
-
-  // -- Drag handlers --
+  // --- Drag column reorder ---
   function onDragStart(e: React.DragEvent, key: ColKey) {
     dragRef.current.dragKey = key;
     e.dataTransfer.effectAllowed = "move";
     (e.currentTarget as HTMLElement).classList.add("dragging");
     setDragSourceCol(key);
   }
-
   function onDragEnd(e: React.DragEvent) {
     (e.currentTarget as HTMLElement).classList.remove("dragging");
     document.querySelectorAll(".drag-over-left, .drag-over-right").forEach((el) => {
       el.classList.remove("drag-over-left", "drag-over-right");
     });
     dragRef.current = { dragKey: null, overKey: null, side: null };
-    setDragSourceCol(null);
-    setDragOverCol(null);
+    setDragSourceCol(null); setDragOverCol(null);
   }
-
   function onDragOver(e: React.DragEvent, key: ColKey) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const midX = rect.left + rect.width / 2;
-    const side = e.clientX < midX ? "left" : "right";
+    const side = e.clientX < rect.left + rect.width / 2 ? "left" : "right";
     const el = e.currentTarget as HTMLElement;
-
     if (dragRef.current.overKey !== key || dragRef.current.side !== side) {
-      document.querySelectorAll(".drag-over-left, .drag-over-right").forEach((n) => {
-        n.classList.remove("drag-over-left", "drag-over-right");
-      });
+      document.querySelectorAll(".drag-over-left, .drag-over-right").forEach((n) => n.classList.remove("drag-over-left", "drag-over-right"));
       el.classList.add(side === "left" ? "drag-over-left" : "drag-over-right");
-      dragRef.current.overKey = key;
-      dragRef.current.side = side;
+      dragRef.current.overKey = key; dragRef.current.side = side;
       setDragOverCol(key);
     }
   }
-
-  function onDragLeave() {
-    setDragOverCol(null);
-  }
-
+  function onDragLeave() { setDragOverCol(null); }
   function onDrop(e: React.DragEvent, targetKey: ColKey) {
     e.preventDefault();
     const { dragKey, side } = dragRef.current;
     if (!dragKey || dragKey === targetKey) return;
-
     const order = [...colOrder];
     const fromIdx = order.indexOf(dragKey);
     if (fromIdx === -1) return;
@@ -331,265 +150,137 @@ export default function ProductManager() {
     let toIdx = order.indexOf(targetKey);
     if (side === "right") toIdx += 1;
     order.splice(toIdx, 0, dragKey);
-    saveColOrder(order);
-
-    // Flash the moved column briefly
+    setColOrder(order);
+    localStorage.setItem("productColOrder", JSON.stringify(order));
     setFlashCol(dragKey);
     setTimeout(() => setFlashCol(null), 600);
   }
 
-  async function handleExport() {
-    try {
-      const blob = await exportProductsCsv();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "productos.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("CSV descargado");
-    } catch (err: any) {
-      toast.error(err.message || "Error al exportar");
+  // --- Column resize ---
+  const onResizeMouseDown = useCallback((e: React.MouseEvent, col: ColKey) => {
+    e.preventDefault(); e.stopPropagation();
+    resizeRef.current = { col, startX: e.clientX, startWidth: colWidths[col] ?? DEFAULT_COL_WIDTHS[col] ?? 100 };
+    const handle = e.currentTarget as HTMLElement;
+    handle.classList.add("resizing");
+    function onMove(ev: MouseEvent) {
+      if (!resizeRef.current) return;
+      const newWidth = Math.max(50, resizeRef.current.startWidth + ev.clientX - resizeRef.current.startX);
+      setColWidths((prev) => ({ ...prev, [resizeRef.current!.col!]: newWidth }));
     }
-  }
+    function onUp() {
+      handle.classList.remove("resizing");
+      if (resizeRef.current) setColWidths((prev) => { localStorage.setItem("productColWidths", JSON.stringify(prev)); return prev; });
+      resizeRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [colWidths]);
 
+  // --- Bulk selection ---
   function toggleSelectAll() {
-    if (selectedIds.size === pagedProducts.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(pagedProducts.map((p) => p.id)));
-    }
+    setSelectedIds(selectedIds.size === pagedProducts.length ? new Set() : new Set(pagedProducts.map((p) => p.id)));
   }
-
   function toggleSelect(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setSelectedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   }
 
+  // --- Bulk actions ---
   async function handleBulkDelete() {
     if (!window.confirm(`¿Eliminar ${selectedIds.size} productos? Esta acción no se puede deshacer.`)) return;
     try {
       const res = await bulkDeleteProducts([...selectedIds]);
       toast.success(`${res.deleted} productos eliminados`);
-      setSelectedIds(new Set());
-      loadProducts();
-    } catch (err: any) {
-      toast.error(err.message || "Error al eliminar");
-    }
+      setSelectedIds(new Set()); loadProducts();
+    } catch (err: any) { toast.error(err.message || "Error al eliminar"); }
   }
-
   async function handleBulkDeactivate(active: boolean) {
     try {
       const res = await bulkPatchProducts([...selectedIds], { is_active: active });
       toast.success(`${res.updated} productos ${active ? "activados" : "desactivados"}`);
-      setSelectedIds(new Set());
-      loadProducts();
-    } catch (err: any) {
-      toast.error(err.message || "Error al actualizar");
-    }
+      setSelectedIds(new Set()); loadProducts();
+    } catch (err: any) { toast.error(err.message || "Error al actualizar"); }
   }
 
+  // --- CSV import/export ---
+  async function handleExport() {
+    try {
+      const blob = await exportProductsCsv();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "productos.csv"; a.click();
+      URL.revokeObjectURL(url);
+      toast.success("CSV descargado");
+    } catch (err: any) { toast.error(err.message || "Error al exportar"); }
+  }
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]; if (!file) return;
     setImporting(true);
     try {
       const result = await importProductsCsv(file);
       toast.success(`Importado: ${result.created} nuevos, ${result.updated} actualizados`);
-      if (result.errors.length > 0) {
-        toast.error(`${result.errors.length} errores — revisa la consola`);
-        console.warn("Import errors:", result.errors);
-      }
+      if (result.errors.length > 0) { toast.error(`${result.errors.length} errores`); console.warn("Import errors:", result.errors); }
       loadProducts();
-    } catch (err: any) {
-      toast.error(err.message || "Error al importar");
-    } finally {
-      setImporting(false);
-      if (importRef.current) importRef.current.value = "";
+    } catch (err: any) { toast.error(err.message || "Error al importar"); }
+    finally { setImporting(false); if (importRef.current) importRef.current.value = ""; }
+  }
+
+  // --- Barcode scan: Enter with single result opens product ---
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && filteredProducts.length === 1) {
+      setSelected(filteredProducts[0]); setSearch("");
     }
   }
 
-  // All hooks must run before any early returns (Rules of Hooks)
-  function handleSort(key: ColKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  }
+  function handleSaved() { setSelected(null); setShowCreate(false); loadProducts(); }
 
-  const sortIndicator = (key: ColKey) =>
-    sortKey === key ? (sortDir === "asc" ? " \u25B2" : " \u25BC") : "";
-
-  const sortedProducts = useMemo(() => [...filteredProducts].sort((a, b) => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    switch (sortKey) {
-      case "name": return dir * a.name.localeCompare(b.name);
-      case "barcode": return dir * a.barcode.localeCompare(b.barcode);
-      case "price": return dir * (a.price - b.price);
-      case "cost": return dir * (a.cost - b.cost);
-      case "stock": return dir * (a.stock - b.stock);
-      case "category": {
-        const ca = a.category?.name || "";
-        const cb = b.category?.name || "";
-        return dir * ca.localeCompare(cb);
-      }
-      case "image": return dir * ((a.image_url ? 1 : 0) - (b.image_url ? 1 : 0));
-      case "packs": return dir * ((a.barcodes?.length ?? 0) - (b.barcodes?.length ?? 0));
-      case "sell_by_weight": return dir * ((a.sell_by_weight ? 1 : 0) - (b.sell_by_weight ? 1 : 0));
-      case "updated_at": return dir * (a.updated_at || "").localeCompare(b.updated_at || "");
-      case "created_at": return dir * (a.created_at || "").localeCompare(b.created_at || "");
-      default: return 0;
-    }
-  }), [products, sortKey, sortDir]);
-
-  const totalPages = pageSize > 0 ? Math.ceil(sortedProducts.length / pageSize) : 1;
-  const pagedProducts = useMemo(() => pageSize > 0
-    ? sortedProducts.slice(page * pageSize, (page + 1) * pageSize)
-    : sortedProducts,
-  [sortedProducts, page, pageSize]);
-
-  // Visible columns in user-defined order
-  const displayCols = useMemo(() => colOrder.filter((k) => {
-    const def = colDef(k);
-    if (!def.toggleable) return true;
-    return visibleCols.has(k);
-  }), [colOrder, visibleCols]);
-
-  // Early returns after all hooks
-  if (showCreate) {
-    return <ProductForm onSave={handleSaved} onCancel={() => setShowCreate(false)} />;
-  }
-
-  if (selected) {
-    return <ProductForm product={selected} onSave={handleSaved} onCancel={() => setSelected(null)} />;
-  }
-
-  function cellHighlight(key: ColKey): React.CSSProperties {
-    if (key === dragSourceCol) return { background: "#dbeafe", opacity: 0.5 };
-    if (key === dragOverCol) return { background: "#eff6ff" };
-    if (key === flashCol) return { background: "#bfdbfe", transition: "background 0.6s ease-out" };
-    return {};
-  }
-
-  function renderCell(p: Product, key: ColKey) {
+  // --- renderCell (needs drag/highlight state, so lives here) ---
+  function renderCell(p: Product, key: ColKey): React.ReactNode {
     const hl = cellHighlight(key);
     switch (key) {
-      case "name":
-        return (
-          <td key={key} style={{ ...styles.tdName, ...hl }}>
-            <div style={styles.nameCell}>
-              {p.image_url ? (
-                <img src={p.image_url} alt="" style={styles.thumb} />
-              ) : (
-                <div style={styles.thumbPlaceholder}>{p.name.charAt(0).toUpperCase()}</div>
-              )}
-              <span style={styles.rowName}>{p.name}</span>
-            </div>
-          </td>
-        );
-      case "barcode":
-        return <td key={key} style={{ ...styles.td, ...styles.barcode, ...hl }}>{p.barcode}</td>;
-      case "price":
-        return <td key={key} style={{ ...styles.td, textAlign: "right", fontWeight: 600, ...hl }}>${fmt(p.price)}</td>;
-      case "cost":
-        return <td key={key} style={{ ...styles.td, textAlign: "right", color: "#64748b", ...hl }}>${fmt(p.cost)}</td>;
-      case "stock":
-        return (
-          <td key={key} style={{ ...styles.td, textAlign: "right", color: p.stock <= p.min_stock ? "#dc2626" : "#16a34a", fontWeight: 600, ...hl }}>
-            {p.stock}
-          </td>
-        );
-      case "category":
-        return (
-          <td key={key} style={{ ...styles.td, ...hl }}>
-            {p.category ? (
-              <span style={{ ...styles.badge, background: p.category.color || "#94a3b8" }}>{p.category.name}</span>
-            ) : (
-              <span style={{ color: "#cbd5e1" }}>—</span>
-            )}
-          </td>
-        );
-      case "image":
-        return (
-          <td key={key} style={{ ...styles.td, textAlign: "center", ...hl }}>
-            {p.image_url ? <span style={styles.yesTag}>Si</span> : <span style={styles.noTag}>No</span>}
-          </td>
-        );
-      case "packs":
-        return (
-          <td key={key} style={{ ...styles.td, textAlign: "center", ...hl }}>
-            {(p.barcodes?.length ?? 0) > 0 ? <span style={styles.packTag}>{p.barcodes.length}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
-          </td>
-        );
-      case "sell_by_weight":
-        return (
-          <td key={key} style={{ ...styles.td, textAlign: "center", ...hl }}>
-            {p.sell_by_weight ? <span style={styles.weightTag}>Si</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
-          </td>
-        );
-      case "updated_at":
-        return <td key={key} style={{ ...styles.td, color: "#64748b", fontSize: 12, ...hl }}>{fmtDate(p.updated_at)}</td>;
-      case "created_at":
-        return <td key={key} style={{ ...styles.td, color: "#64748b", fontSize: 12, ...hl }}>{fmtDate(p.created_at)}</td>;
-      default:
-        return null;
+      case "name":    return <td key={key} style={{ ...pmStyles.tdName, ...hl }}><div style={pmStyles.nameCell}>{p.image_url ? <img src={p.image_url} alt="" style={pmStyles.thumb} /> : <div style={pmStyles.thumbPlaceholder}>{p.name.charAt(0).toUpperCase()}</div>}<span style={pmStyles.rowName}>{p.name}</span></div></td>;
+      case "barcode": return <td key={key} style={{ ...pmStyles.td, ...pmStyles.barcode, ...hl }}>{p.barcode}</td>;
+      case "price":   return <td key={key} style={{ ...pmStyles.td, textAlign: "right", fontWeight: 600, ...hl }}>${fmt(p.price)}</td>;
+      case "cost":    return <td key={key} style={{ ...pmStyles.td, textAlign: "right", color: "#64748b", ...hl }}>${fmt(p.cost)}</td>;
+      case "stock":   return <td key={key} style={{ ...pmStyles.td, textAlign: "right", color: p.stock <= p.min_stock ? "#dc2626" : "#16a34a", fontWeight: 600, ...hl }}>{p.stock}</td>;
+      case "category": return <td key={key} style={{ ...pmStyles.td, ...hl }}>{p.category ? <span style={{ ...pmStyles.badge, background: p.category.color || "#94a3b8" }}>{p.category.name}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>;
+      case "image":   return <td key={key} style={{ ...pmStyles.td, textAlign: "center", ...hl }}>{p.image_url ? <span style={pmStyles.yesTag}>Si</span> : <span style={pmStyles.noTag}>No</span>}</td>;
+      case "packs":   return <td key={key} style={{ ...pmStyles.td, textAlign: "center", ...hl }}>{(p.barcodes?.length ?? 0) > 0 ? <span style={pmStyles.packTag}>{p.barcodes.length}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>;
+      case "sell_by_weight": return <td key={key} style={{ ...pmStyles.td, textAlign: "center", ...hl }}>{p.sell_by_weight ? <span style={pmStyles.weightTag}>Si</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>;
+      case "updated_at": return <td key={key} style={{ ...pmStyles.td, color: "#64748b", fontSize: 12, ...hl }}>{fmtDate(p.updated_at)}</td>;
+      case "created_at": return <td key={key} style={{ ...pmStyles.td, color: "#64748b", fontSize: 12, ...hl }}>{fmtDate(p.created_at)}</td>;
+      default:        return null;
     }
   }
+
+  // --- Early returns (after all hooks) ---
+  if (showCreate) return <ProductForm onSave={handleSaved} onCancel={() => setShowCreate(false)} />;
+  if (selected)   return <ProductForm product={selected} onSave={handleSaved} onCancel={() => setSelected(null)} />;
 
   return (
     <div>
-      <div style={styles.toolbar}>
-        <input
-          style={styles.search}
-          placeholder="Buscar por nombre o codigo de barras..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={handleSearchKeyDown}
-        />
-        <button style={styles.addBtn} onClick={() => setShowCreate(true)}>
-          + Nuevo
-        </button>
+      {/* Search + New */}
+      <div style={pmStyles.toolbar}>
+        <input style={pmStyles.search} placeholder="Buscar por nombre o codigo de barras..."
+          value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} />
+        <button style={pmStyles.addBtn} onClick={() => setShowCreate(true)}>+ Nuevo</button>
       </div>
-      <div style={styles.ioBar}>
-        <button style={styles.exportBtn} onClick={handleExport}>
-          Exportar CSV
-        </button>
-        <button
-          style={styles.importBtn}
-          onClick={() => importRef.current?.click()}
-          disabled={importing}
-        >
+
+      {/* Export / Import / Column picker */}
+      <div style={pmStyles.ioBar}>
+        <button style={pmStyles.exportBtn} onClick={handleExport}>Exportar CSV</button>
+        <button style={pmStyles.importBtn} onClick={() => importRef.current?.click()} disabled={importing}>
           {importing ? "Importando..." : "Importar CSV"}
         </button>
-        <input
-          ref={importRef}
-          type="file"
-          accept=".csv"
-          style={{ display: "none" }}
-          onChange={handleImport}
-        />
+        <input ref={importRef} type="file" accept=".csv" style={{ display: "none" }} onChange={handleImport} />
         <div style={{ flex: 1 }} />
         <div style={{ position: "relative" }}>
-          <button
-            style={styles.colToggleBtn}
-            onClick={() => setShowColPicker((v) => !v)}
-          >
-            Columnas
-          </button>
+          <button style={pmStyles.colToggleBtn} onClick={() => setShowColPicker((v) => !v)}>Columnas</button>
           {showColPicker && (
-            <div style={styles.colPicker}>
+            <div style={pmStyles.colPicker}>
               {TOGGLEABLE_COLS.map((c) => (
-                <label key={c.key} style={styles.colCheckLabel}>
-                  <input
-                    type="checkbox"
-                    checked={visibleCols.has(c.key)}
-                    onChange={() => toggleCol(c.key)}
-                  />
+                <label key={c.key} style={pmStyles.colCheckLabel}>
+                  <input type="checkbox" checked={visibleCols.has(c.key)} onChange={() => toggleCol(c.key)} />
                   {c.label}
                 </label>
               ))}
@@ -598,426 +289,62 @@ export default function ProductManager() {
         </div>
       </div>
 
-      {/* Pagination bar */}
-      <div style={styles.paginationBar}>
-        <span style={styles.totalCount}>
+      {/* Pagination */}
+      <div style={pmStyles.paginationBar}>
+        <span style={pmStyles.totalCount}>
           {search ? `${sortedProducts.length} de ${products.length}` : `${products.length} productos`}
         </span>
-        <div style={styles.pageSizeWrap}>
-          <span style={styles.pageSizeLabel}>Mostrar:</span>
+        <div style={pmStyles.pageSizeWrap}>
+          <span style={pmStyles.pageSizeLabel}>Mostrar:</span>
           {[50, 100, 0].map((size) => (
-            <button
-              key={size}
-              style={pageSize === size ? { ...styles.pageSizeBtn, ...styles.pageSizeBtnActive } : styles.pageSizeBtn}
-              onClick={() => { setPageSize(size); setPage(0); }}
-            >
+            <button key={size}
+              style={pageSize === size ? { ...pmStyles.pageSizeBtn, ...pmStyles.pageSizeBtnActive } : pmStyles.pageSizeBtn}
+              onClick={() => { setPageSize(size); setPage(0); }}>
               {size === 0 ? "Todos" : size}
             </button>
           ))}
         </div>
         {pageSize > 0 && totalPages > 1 && (
-          <div style={styles.pageNav}>
-            <button
-              style={styles.pageBtn}
-              disabled={page === 0}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              &lt; Anterior
-            </button>
-            <span style={styles.pageInfo}>
-              {page + 1} / {totalPages}
-            </span>
-            <button
-              style={styles.pageBtn}
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Siguiente &gt;
-            </button>
+          <div style={pmStyles.pageNav}>
+            <button style={pmStyles.pageBtn} disabled={page === 0} onClick={() => setPage((p) => p - 1)}>&lt; Anterior</button>
+            <span style={pmStyles.pageInfo}>{page + 1} / {totalPages}</span>
+            <button style={pmStyles.pageBtn} disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Siguiente &gt;</button>
           </div>
         )}
       </div>
 
-      {/* Bulk action bar */}
+      {/* Bulk actions */}
       {selectedIds.size > 0 && (
-        <div style={styles.bulkBar}>
-          <span style={styles.bulkCount}>{selectedIds.size} seleccionados</span>
-          <button style={styles.bulkBtn} onClick={() => handleBulkDeactivate(false)}>Desactivar</button>
-          <button style={styles.bulkBtn} onClick={() => handleBulkDeactivate(true)}>Activar</button>
-          <button style={{ ...styles.bulkBtn, ...styles.bulkDeleteBtn }} onClick={handleBulkDelete}>Eliminar</button>
-          <button style={styles.bulkCancelBtn} onClick={() => setSelectedIds(new Set())}>Cancelar</button>
+        <div style={pmStyles.bulkBar}>
+          <span style={pmStyles.bulkCount}>{selectedIds.size} seleccionados</span>
+          <button style={pmStyles.bulkBtn} onClick={() => handleBulkDeactivate(false)}>Desactivar</button>
+          <button style={pmStyles.bulkBtn} onClick={() => handleBulkDeactivate(true)}>Activar</button>
+          <button style={{ ...pmStyles.bulkBtn, ...pmStyles.bulkDeleteBtn }} onClick={handleBulkDelete}>Eliminar</button>
+          <button style={pmStyles.bulkCancelBtn} onClick={() => setSelectedIds(new Set())}>Cancelar</button>
         </div>
       )}
 
       {/* Table */}
-      <div style={styles.tableWrap}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.thCheck}>
-                <input
-                  type="checkbox"
-                  className="pm-cb"
-                  checked={pagedProducts.length > 0 && selectedIds.size === pagedProducts.length}
-                  onChange={toggleSelectAll}
-                />
-              </th>
-              {displayCols.map((key) => {
-                const def = colDef(key);
-                const hl = cellHighlight(key);
-                const w = colWidths[key];
-                return (
-                  <th
-                    key={key}
-                    className="pm-th-drag"
-                    style={{ ...styles.thSort, textAlign: def.align, ...hl, width: w, minWidth: w, maxWidth: w, position: "relative" }}
-                    draggable
-                    onClick={() => handleSort(key)}
-                    onDragStart={(e) => onDragStart(e, key)}
-                    onDragEnd={onDragEnd}
-                    onDragOver={(e) => onDragOver(e, key)}
-                    onDragLeave={onDragLeave}
-                    onDrop={(e) => onDrop(e, key)}
-                  >
-                    {def.label}{sortIndicator(key)}
-                    <div
-                      className="pm-resize-handle"
-                      onMouseDown={(e) => onResizeMouseDown(e, key)}
-                    />
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {pagedProducts.map((p) => (
-              <ProductRow
-                key={p.id}
-                product={p}
-                selected={selectedIds.has(p.id)}
-                displayCols={displayCols}
-                onSelect={setSelected}
-                onToggle={toggleSelect}
-                renderCell={renderCell}
-              />
-            ))}
-            {products.length === 0 && (
-              <tr>
-                <td colSpan={99} style={styles.empty}>
-                  No se encontraron productos
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <ProductTable
+        pagedProducts={pagedProducts}
+        allProductsCount={products.length}
+        displayCols={displayCols}
+        colWidths={colWidths}
+        selectedIds={selectedIds}
+        onSelect={setSelected}
+        onToggle={toggleSelect}
+        toggleSelectAll={toggleSelectAll}
+        renderCell={renderCell}
+        cellHighlight={cellHighlight}
+        handleSort={handleSort}
+        sortIndicator={sortIndicator}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onResizeMouseDown={onResizeMouseDown}
+      />
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  toolbar: { display: "flex", gap: 8, marginBottom: 12 },
-  search: {
-    flex: 1,
-    padding: "8px 12px",
-    borderRadius: 8,
-    border: "1px solid #e2e8f0",
-    fontSize: 14,
-    outline: "none",
-  },
-  addBtn: {
-    padding: "8px 16px",
-    borderRadius: 8,
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 600,
-    whiteSpace: "nowrap",
-  },
-  ioBar: { display: "flex", gap: 8, marginBottom: 12, alignItems: "center" },
-  exportBtn: {
-    padding: "8px 14px",
-    borderRadius: 8,
-    border: "1px solid #16a34a",
-    background: "#f0fdf4",
-    color: "#16a34a",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 600,
-  },
-  importBtn: {
-    padding: "8px 14px",
-    borderRadius: 8,
-    border: "1px solid #2563eb",
-    background: "#eff6ff",
-    color: "#2563eb",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 600,
-  },
-  colToggleBtn: {
-    padding: "8px 14px",
-    borderRadius: 8,
-    border: "1px solid #94a3b8",
-    background: "#f8fafc",
-    color: "#475569",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 600,
-  },
-  colPicker: {
-    position: "absolute",
-    right: 0,
-    top: "100%",
-    marginTop: 4,
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 8,
-    padding: "8px 12px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    zIndex: 10,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-    minWidth: 180,
-  },
-  colCheckLabel: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 13,
-    color: "#334155",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  tableWrap: {
-    overflowX: "auto",
-    borderRadius: 8,
-    border: "1px solid #e2e8f0",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    fontSize: 13,
-  },
-  thSort: {
-    padding: "10px 12px",
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#64748b",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    borderBottom: "2px solid #e2e8f0",
-    background: "#f8fafc",
-    whiteSpace: "nowrap",
-    cursor: "pointer",
-    userSelect: "none",
-  },
-  tr: {
-    cursor: "pointer",
-    borderBottom: "1px solid #f1f5f9",
-  },
-  td: {
-    padding: "8px 12px",
-    verticalAlign: "middle",
-    whiteSpace: "nowrap",
-  },
-  tdName: {
-    padding: "8px 12px",
-    verticalAlign: "middle",
-  },
-  nameCell: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    minWidth: 0,
-  },
-  thumb: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    objectFit: "cover",
-    flexShrink: 0,
-  },
-  thumbPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    background: "#f1f5f9",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 700,
-    color: "#94a3b8",
-    flexShrink: 0,
-  },
-  rowName: {
-    fontSize: 13,
-    fontWeight: 500,
-    color: "#0f172a",
-  },
-  barcode: {
-    fontSize: 12,
-    color: "#94a3b8",
-    fontFamily: "monospace",
-  },
-  badge: {
-    fontSize: 10,
-    fontWeight: 600,
-    color: "#fff",
-    padding: "2px 6px",
-    borderRadius: 4,
-  },
-  weightTag: {
-    fontSize: 10,
-    fontWeight: 700,
-    background: "#fef3c7",
-    color: "#92400e",
-    padding: "2px 6px",
-    borderRadius: 4,
-  },
-  packTag: {
-    fontSize: 10,
-    fontWeight: 700,
-    background: "#dbeafe",
-    color: "#1e40af",
-    padding: "2px 6px",
-    borderRadius: 4,
-  },
-  yesTag: {
-    fontSize: 10,
-    fontWeight: 700,
-    background: "#dcfce7",
-    color: "#16a34a",
-    padding: "2px 6px",
-    borderRadius: 4,
-  },
-  noTag: {
-    fontSize: 10,
-    fontWeight: 700,
-    background: "#fef2f2",
-    color: "#dc2626",
-    padding: "2px 6px",
-    borderRadius: 4,
-  },
-  empty: {
-    textAlign: "center",
-    color: "#94a3b8",
-    padding: 40,
-  },
-  thCheck: {
-    padding: "10px 8px",
-    width: 36,
-    background: "#f8fafc",
-    borderBottom: "2px solid #e2e8f0",
-    textAlign: "center" as const,
-  },
-  tdCheck: {
-    padding: "8px 8px",
-    width: 36,
-    textAlign: "center" as const,
-    verticalAlign: "middle",
-  },
-  bulkBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 12px",
-    background: "#eff6ff",
-    border: "1px solid #bfdbfe",
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  bulkCount: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#1e40af",
-    marginRight: 4,
-  },
-  bulkBtn: {
-    padding: "5px 12px",
-    borderRadius: 6,
-    border: "1px solid #93c5fd",
-    background: "#fff",
-    color: "#1d4ed8",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 600,
-  },
-  bulkDeleteBtn: {
-    border: "1px solid #fca5a5",
-    color: "#dc2626",
-  },
-  bulkCancelBtn: {
-    padding: "5px 12px",
-    borderRadius: 6,
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#64748b",
-    cursor: "pointer",
-    fontSize: 13,
-    marginLeft: "auto",
-  },
-  paginationBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 8,
-    flexWrap: "wrap",
-  },
-  totalCount: {
-    fontSize: 13,
-    color: "#64748b",
-    fontWeight: 500,
-  },
-  pageSizeWrap: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-  },
-  pageSizeLabel: {
-    fontSize: 12,
-    color: "#94a3b8",
-    marginRight: 2,
-  },
-  pageSizeBtn: {
-    padding: "4px 10px",
-    borderRadius: 6,
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#475569",
-    cursor: "pointer",
-    fontSize: 12,
-    fontWeight: 500,
-  },
-  pageSizeBtnActive: {
-    background: "#2563eb",
-    color: "#fff",
-    borderColor: "#2563eb",
-  },
-  pageNav: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    marginLeft: "auto",
-  },
-  pageBtn: {
-    padding: "4px 12px",
-    borderRadius: 6,
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#475569",
-    cursor: "pointer",
-    fontSize: 12,
-    fontWeight: 500,
-  },
-  pageInfo: {
-    fontSize: 13,
-    color: "#334155",
-    fontWeight: 600,
-  },
-};

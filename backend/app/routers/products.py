@@ -211,6 +211,41 @@ def create_category(
     return cat
 
 
+@router.patch("/categories/{category_id}", response_model=CategoryResponse)
+def update_category(
+    category_id: str,
+    data: CategoryCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    cat = db.query(Category).filter(Category.id == category_id).first()
+    if not cat:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Category not found")
+    cat.name = data.name
+    cat.color = data.color
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+
+@router.delete("/categories/{category_id}")
+def delete_category(
+    category_id: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    cat = db.query(Category).filter(Category.id == category_id).first()
+    if not cat:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Category not found")
+    # Unlink products before deleting
+    db.query(Product).filter(Product.category_id == category_id).update({"category_id": None})
+    db.delete(cat)
+    db.commit()
+    return {"ok": True}
+
+
 # --- Products ---
 
 @router.get("", response_model=list[ProductResponse])

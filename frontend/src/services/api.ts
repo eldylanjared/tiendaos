@@ -300,18 +300,40 @@ export async function createSale(
         created_at: new Date().toISOString(),
       };
       await queuePendingSale(pending);
-      // Return a local-only sale so the POS can show a receipt
+
+      // Build a real receipt from cached products
+      const cached = await getCachedProducts().catch(() => []);
+      const nameMap = new Map(cached.map((p) => [p.id, p.name]));
+      const TAX_RATE = 0.16;
+      const saleItems = items.map((item) => {
+        const price = item.unit_price ?? 0;
+        const lineTotal = price * item.quantity * (1 - (item.discount_percent ?? 0) / 100);
+        return {
+          id: crypto.randomUUID(),
+          product_id: item.product_id,
+          product_name: nameMap.get(item.product_id) ?? item.product_id,
+          quantity: item.quantity,
+          unit_price: price,
+          discount_percent: item.discount_percent ?? 0,
+          line_total: lineTotal,
+          pack_units: item.pack_units ?? 1,
+        };
+      });
+      const subtotal = saleItems.reduce((s, i) => s + i.line_total, 0);
+      const tax = subtotal * TAX_RATE;
+      const total = subtotal + tax;
+
       return {
         id: pending.id,
         store_id: "",
         user_id: "",
-        items: [],
-        subtotal: 0,
-        tax: 0,
-        total: cash_received,
+        items: saleItems,
+        subtotal,
+        tax,
+        total,
         payment_method,
         cash_received,
-        change_given: 0,
+        change_given: Math.max(cash_received - total, 0),
         status: "pending_sync",
         created_at: pending.created_at,
       } as Sale;
