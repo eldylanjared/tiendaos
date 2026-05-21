@@ -1,5 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
+from typing import Optional
 
 
 class SaleItemCreate(BaseModel):
@@ -7,6 +8,7 @@ class SaleItemCreate(BaseModel):
     quantity: float = 1
     discount_percent: float = 0.0
     pack_units: int = 1
+    unit_price: Optional[float] = None  # override product price (e.g. Varios custom price)
 
 
 class SaleItemResponse(BaseModel):
@@ -41,6 +43,31 @@ class SaleResponse(BaseModel):
     status: str
     created_at: datetime
     model_config = {"from_attributes": True}
+
+
+class SaleImportItemPayload(BaseModel):
+    product_id: str
+    product_name: str
+    quantity: float
+    unit_price: float
+    discount_percent: float = 0.0
+    line_total: float
+    pack_units: int = 1
+
+
+class SaleImportPayload(BaseModel):
+    id: str
+    store_id: str
+    user_id: Optional[str] = None
+    subtotal: float
+    tax: float
+    total: float
+    payment_method: str = "cash"
+    cash_received: float = 0.0
+    change_given: float = 0.0
+    status: str = "completed"
+    created_at: datetime
+    items: list[SaleImportItemPayload]
 
 
 class TopProduct(BaseModel):

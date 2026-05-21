@@ -37,3 +37,23 @@ def get_db():
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
+
+
+def _run_migrations():
+    """Apply safe column additions for SQLite (ALTER TABLE ADD COLUMN IF NOT EXISTS)."""
+    if not settings.database_url.startswith("sqlite"):
+        return
+    migrations = [
+        ("products", "supplier_id", "VARCHAR(36) REFERENCES suppliers(id)"),
+        ("sales", "synced_at", "DATETIME"),
+    ]
+    with engine.connect() as conn:
+        for table, column, col_def in migrations:
+            try:
+                conn.execute(__import__("sqlalchemy").text(
+                    f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"
+                ))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists

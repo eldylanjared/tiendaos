@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.product import Product, VolumePromo
 from app.models.sale import Sale, SaleItem
 from app.models.user import User
-from app.schemas.sale import SaleCreate, SaleResponse, DailySummary, TopProduct
+from app.schemas.sale import SaleCreate, SaleResponse, DailySummary, TopProduct, SaleImportPayload
 from app.services.auth import get_current_user, require_role
 
 settings = get_settings()
@@ -46,15 +46,16 @@ def create_sale(
 
         stock_decrement = int(item_data.quantity * item_data.pack_units)
 
-        # Determine unit price
-        if item_data.pack_units > 1:
-            # Pack item — unit_price is the pack price (set by frontend from pack info)
+        # Determine unit price — frontend override takes priority (e.g. Varios custom price)
+        if item_data.unit_price is not None:
+            unit_price = item_data.unit_price
+        elif item_data.pack_units > 1:
             unit_price = product.price * item_data.pack_units
         else:
             unit_price = product.price
 
-        # Apply volume promo for single-unit items (bundle pricing)
-        if item_data.pack_units == 1 and not product.sell_by_weight:
+        # Apply volume promo for single-unit items (bundle pricing) — only when no price override
+        if item_data.unit_price is None and item_data.pack_units == 1 and not product.sell_by_weight:
             total_qty = int(product_units.get(item_data.product_id, 0))
             promos = (
                 db.query(VolumePromo)
@@ -196,3 +197,45 @@ def daily_summary(
         avg_ticket=avg_ticket,
         top_products=[TopProduct(**p) for p in top],
     )
+
+
+@router.post("/sync-import", status_code=201)
+def sync_import_sale(
+    data: SaleImportPayload,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    """Idempotent sale import from local instances. Uses the sale's original ID."""
+    existing = db.query(Sale).filter(Sale.id == data.id).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Sale already exists")
+
+    sale = Sale(
+        id=data.id,
+        store_id=data.store_id,
+        user_id=data.user_id or "sync",
+        subtotal=data.subtotal,
+        tax=data.tax,
+        total=data.total,
+        payment_method=data.payment_method,
+        cash_received=data.cash_received,
+        change_given=data.change_given,
+        status=data.status,
+        created_at=data.created_at,
+        synced_at=datetime.now(timezone.utc),
+    )
+
+    for item_data in data.items:
+        sale.items.append(SaleItem(
+            product_id=item_data.product_id,
+            product_name=item_data.product_name,
+            quantity=item_data.quantity,
+            unit_price=item_data.unit_price,
+            discount_percent=item_data.discount_percent,
+            line_total=item_data.line_total,
+            pack_units=item_data.pack_units,
+        ))
+
+    db.add(sale)
+    db.commit()
+    return {"ok": True, "id": sale.id}

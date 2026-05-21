@@ -5,8 +5,8 @@ interface Props {
   subtotal: number;
   tax: number;
   total: number;
-  onUpdateQty: (productId: string, packUnits: number, qty: number) => void;
-  onRemove: (productId: string, packUnits: number) => void;
+  onUpdateQty: (productId: string, packUnits: number, packPrice: number | null, qty: number) => void;
+  onRemove: (productId: string, packUnits: number, packPrice: number | null) => void;
   onClear: () => void;
   onPay: () => void;
 }
@@ -28,7 +28,7 @@ export default function Cart({ items, subtotal, tax, total, onUpdateQty, onRemov
           <p style={styles.empty}>Escanea o selecciona productos</p>
         )}
         {items.map((item) => {
-          const key = `${item.product.id}-${item.pack_units}`;
+          const key = `${item.product.id}-${item.pack_units}-${item.pack_price ?? ""}`;
           const unitPrice = item.pack_price ?? item.product.price;
           return (
             <div key={key} style={styles.item}>
@@ -61,20 +61,20 @@ export default function Cart({ items, subtotal, tax, total, onUpdateQty, onRemov
                   <>
                     <button
                       style={styles.qtyBtn}
-                      onClick={() => onUpdateQty(item.product.id, item.pack_units, item.quantity - 1)}
+                      onClick={() => onUpdateQty(item.product.id, item.pack_units, item.pack_price, item.quantity - 1)}
                     >
                       −
                     </button>
                     <span style={styles.qtyVal}>{item.quantity}</span>
                     <button
                       style={styles.qtyBtn}
-                      onClick={() => onUpdateQty(item.product.id, item.pack_units, item.quantity + 1)}
+                      onClick={() => onUpdateQty(item.product.id, item.pack_units, item.pack_price, item.quantity + 1)}
                     >
                       +
                     </button>
                   </>
                 )}
-                <button style={styles.removeBtn} onClick={() => onRemove(item.product.id, item.pack_units)}>
+                <button style={styles.removeBtn} onClick={() => onRemove(item.product.id, item.pack_units, item.pack_price)}>
                   ✕
                 </button>
               </div>

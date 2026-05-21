@@ -19,6 +19,13 @@ import type {
   FinanceSummary,
   FinanceCategories,
 } from "@/types";
+import {
+  cacheProducts as idbCacheProducts,
+  getCachedProducts,
+  getCachedProductByBarcode,
+  queuePendingSale,
+  type PendingSale,
+} from "@/services/offlineDB";
 
 const BASE = "/api";
 
@@ -122,13 +129,36 @@ export function getMe() {
 }
 
 // Products
-export function searchProducts(search: string = "", limit = 50) {
+export async function searchProducts(search: string = "", limit = 50): Promise<Product[]> {
   const params = new URLSearchParams({ search, limit: String(limit) });
-  return request<Product[]>(`/products?${params}`);
+  try {
+    const results = await request<Product[]>(`/products?${params}`);
+    // Cache in background — don't block the return
+    idbCacheProducts(results).catch(() => {});
+    return results;
+  } catch (err) {
+    if (!navigator.onLine) {
+      const all = await getCachedProducts().catch(() => [] as Product[]);
+      if (!search) return all.slice(0, limit);
+      const q = search.toLowerCase();
+      return all
+        .filter((p) => p.name.toLowerCase().includes(q) || p.barcode.includes(q))
+        .slice(0, limit);
+    }
+    throw err;
+  }
 }
 
-export function getByBarcode(barcode: string) {
-  return request<BarcodeLookupResult>(`/products/barcode/${barcode}`);
+export async function getByBarcode(barcode: string): Promise<BarcodeLookupResult> {
+  try {
+    return await request<BarcodeLookupResult>(`/products/barcode/${barcode}`);
+  } catch (err) {
+    if (!navigator.onLine) {
+      const product = await getCachedProductByBarcode(barcode).catch(() => null);
+      if (product) return { product, pack: null };
+    }
+    throw err;
+  }
 }
 
 export function getProduct(productId: string) {
@@ -214,6 +244,24 @@ export async function importProductsCsv(file: File): Promise<{ created: number; 
   return res.json();
 }
 
+export function deleteProduct(productId: string) {
+  return request<{ ok: boolean }>(`/products/${productId}`, { method: "DELETE" });
+}
+
+export function bulkDeleteProducts(ids: string[]) {
+  return request<{ deleted: number }>(`/products/bulk-delete`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export function bulkPatchProducts(ids: string[], updates: Record<string, unknown>) {
+  return request<{ updated: number }>(`/products/bulk-patch`, {
+    method: "POST",
+    body: JSON.stringify({ ids, updates }),
+  });
+}
+
 export function toggleFavorite(productId: string) {
   return request<{ id: string; is_favorite: boolean }>(`/products/${productId}/toggle-favorite`, {
     method: "POST",
@@ -232,15 +280,66 @@ export function deleteVolumePromo(productId: string, promoId: string) {
 }
 
 // Sales
-export function createSale(
+export async function createSale(
   items: SaleItemCreate[],
   payment_method: string,
   cash_received: number
-) {
-  return request<Sale>("/sales", {
-    method: "POST",
-    body: JSON.stringify({ items, payment_method, cash_received }),
-  });
+): Promise<Sale> {
+  try {
+    return await request<Sale>("/sales", {
+      method: "POST",
+      body: JSON.stringify({ items, payment_method, cash_received }),
+    });
+  } catch (err) {
+    if (!navigator.onLine) {
+      const pending: PendingSale = {
+        id: crypto.randomUUID(),
+        items,
+        payment_method,
+        cash_received,
+        created_at: new Date().toISOString(),
+      };
+      await queuePendingSale(pending);
+
+      // Build a real receipt from cached products
+      const cached = await getCachedProducts().catch(() => []);
+      const nameMap = new Map(cached.map((p) => [p.id, p.name]));
+      const TAX_RATE = 0.16;
+      const saleItems = items.map((item) => {
+        const price = item.unit_price ?? 0;
+        const lineTotal = price * item.quantity * (1 - (item.discount_percent ?? 0) / 100);
+        return {
+          id: crypto.randomUUID(),
+          product_id: item.product_id,
+          product_name: nameMap.get(item.product_id) ?? item.product_id,
+          quantity: item.quantity,
+          unit_price: price,
+          discount_percent: item.discount_percent ?? 0,
+          line_total: lineTotal,
+          pack_units: item.pack_units ?? 1,
+        };
+      });
+      const subtotal = saleItems.reduce((s, i) => s + i.line_total, 0);
+      const tax = subtotal * TAX_RATE;
+      const total = subtotal + tax;
+
+      return {
+        id: pending.id,
+        store_id: "",
+        user_id: "",
+        items: saleItems,
+        subtotal,
+        tax,
+        total,
+        payment_method,
+        cash_received,
+        change_given: Math.max(cash_received - total, 0),
+        status: "pending_sync",
+        created_at: pending.created_at,
+      } as Sale;
+    }
+    throw err;
+  }
 }
 
 export function getDailySummary(date?: string) {
@@ -480,4 +579,40 @@ export function deleteTicket(ticketId: string) {
 
 export function getTicketEmployees() {
   return request<{ id: string; full_name: string; role: string }[]>("/tickets/employees");
+}
+
+// Suppliers
+import type { Supplier } from "@/types";
+
+export function getSuppliers() {
+  return request<Supplier[]>("/suppliers");
+}
+
+export function createSupplier(data: Partial<Supplier>) {
+  return request<Supplier>("/suppliers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateSupplier(id: string, data: Partial<Supplier>) {
+  return request<Supplier>(`/suppliers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteSupplier(id: string) {
+  return request<{ ok: boolean }>(`/suppliers/${id}`, { method: "DELETE" });
+}
+
+export function getSupplierProducts(id: string) {
+  return request<{ id: string; name: string; barcode: string; price: number; stock: number; is_active: boolean }[]>(
+    `/suppliers/${id}/products`
+  );
+}
+
+export function uploadSupplierImage(id: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const token = localStorage.getItem("token");
+  return fetch(`/api/suppliers/${id}/image`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  }).then((r) => r.json()) as Promise<{ picture_url: string }>;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   createProduct,
   updateProduct,
@@ -9,8 +9,9 @@ import {
   getProduct,
   getCategories,
   uploadProductImage,
+  getSuppliers,
 } from "@/services/api";
-import type { Product, Category } from "@/types";
+import type { Product, Category, Supplier } from "@/types";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -20,13 +21,16 @@ interface Props {
 }
 
 export default function ProductForm({ product, onSave, onCancel }: Props) {
-  const isEdit = !!product;
+  // After creation, savedProduct is set so pack/promo sections become available
+  const [savedProduct, setSavedProduct] = useState<Product | undefined>(product);
+  const isEdit = !!savedProduct;
 
   const [form, setForm] = useState({
     barcode: product?.barcode ?? "",
     name: product?.name ?? "",
     description: product?.description ?? "",
     category_id: product?.category_id ?? "",
+    supplier_id: product?.supplier_id ?? "",
     price: product?.price ?? 0,
     cost: product?.cost ?? 0,
     stock: product?.stock ?? 0,
@@ -35,25 +39,77 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierOpen, setSupplierOpen] = useState(false);
+  const supplierRef = useRef<HTMLDivElement>(null);
+  const supplierInputRef = useRef<HTMLInputElement>(null);
+  const [supplierDropdownPos, setSupplierDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [imagePreview, setImagePreview] = useState<string>(product?.image_url || "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [barcodes, setBarcodes] = useState(product?.barcodes ?? []);
   const [promos, setPromos] = useState(product?.volume_promos ?? []);
+  const [justCreated, setJustCreated] = useState(false);
 
   const [newBarcode, setNewBarcode] = useState("");
   const [newUnits, setNewUnits] = useState(1);
   const [newPackPrice, setNewPackPrice] = useState(0);
 
-  const [newMinUnits, setNewMinUnits] = useState(1);
-  const [newPromoPrice, setNewPromoPrice] = useState(0);
+  const [newMinUnits, setNewMinUnits] = useState("");
+  const [newPromoPrice, setNewPromoPrice] = useState("");
 
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     getCategories().then(setCategories).catch(() => {});
+    getSuppliers().then((list) => {
+      setSuppliers(list);
+      if (product?.supplier_id) {
+        const found = list.find((s) => s.id === product.supplier_id);
+        if (found) setSupplierSearch(found.name);
+      }
+    }).catch(() => {});
   }, []);
+
+  // Close supplier dropdown on outside click
+  useEffect(() => {
+    if (!supplierOpen) return;
+    function onDown(e: MouseEvent) {
+      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) {
+        setSupplierOpen(false);
+        setSupplierDropdownPos(null);
+        // If nothing selected, clear search
+        if (!form.supplier_id) setSupplierSearch("");
+        else {
+          const found = suppliers.find((s) => s.id === form.supplier_id);
+          setSupplierSearch(found?.name ?? "");
+        }
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [supplierOpen, form.supplier_id, suppliers]);
+
+  const filteredSuppliers = suppliers.filter((s) =>
+    s.name.toLowerCase().includes(supplierSearch.toLowerCase())
+  );
+
+  const selectSupplier = useCallback((id: string, name: string) => {
+    setField("supplier_id", id);
+    setSupplierSearch(name);
+    setSupplierOpen(false);
+    setSupplierDropdownPos(null);
+  }, []);
+
+  function openSupplierDropdown() {
+    if (supplierInputRef.current) {
+      const r = supplierInputRef.current.getBoundingClientRect();
+      setSupplierDropdownPos({ top: r.bottom + 2, left: r.left, width: r.width });
+    }
+    setSupplierOpen(true);
+  }
 
   function setField(field: string, value: unknown) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -77,21 +133,30 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
     try {
       const payload: Record<string, unknown> = { ...form };
       if (!payload.category_id) delete payload.category_id;
+      if (!payload.supplier_id) delete payload.supplier_id;
 
-      let savedProduct: Product;
+      let result: Product;
       if (isEdit) {
-        savedProduct = await updateProduct(product.id, payload);
+        result = await updateProduct(savedProduct.id, payload);
       } else {
-        savedProduct = await createProduct(payload as any);
+        result = await createProduct(payload as any);
       }
 
       // Upload image if selected
       if (imageFile) {
-        await uploadProductImage(savedProduct.id, imageFile);
+        await uploadProductImage(result.id, imageFile);
+        setImageFile(null);
       }
 
-      toast.success(isEdit ? "Producto actualizado" : "Producto creado");
-      onSave();
+      if (isEdit) {
+        toast.success("Producto actualizado");
+        onSave();
+      } else {
+        // Switch to edit mode so user can add pack barcodes and promos
+        setSavedProduct(result);
+        setJustCreated(true);
+        toast.success("Producto creado — agrega packs y promos si necesitas");
+      }
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -100,10 +165,10 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleAddBarcode() {
-    if (!product || !newBarcode || newUnits < 1 || newPackPrice <= 0) return;
+    if (!savedProduct || !newBarcode || newUnits < 1 || newPackPrice <= 0) return;
     try {
-      await addProductBarcode(product.id, newBarcode, newUnits, newPackPrice);
-      const updated = await getProduct(product.id);
+      await addProductBarcode(savedProduct.id, newBarcode, newUnits, newPackPrice);
+      const updated = await getProduct(savedProduct.id);
       setBarcodes(updated.barcodes);
       setNewBarcode("");
       setNewUnits(1);
@@ -115,9 +180,9 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleDeleteBarcode(barcodeId: string) {
-    if (!product) return;
+    if (!savedProduct) return;
     try {
-      await deleteProductBarcode(product.id, barcodeId);
+      await deleteProductBarcode(savedProduct.id, barcodeId);
       setBarcodes((prev) => prev.filter((b) => b.id !== barcodeId));
       toast.success("Barcode eliminado");
     } catch (err: any) {
@@ -126,13 +191,15 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleAddPromo() {
-    if (!product || newMinUnits < 1 || newPromoPrice <= 0) return;
+    const units = parseInt(newMinUnits);
+    const price = parseFloat(newPromoPrice);
+    if (!savedProduct || !units || units < 1 || !price || price <= 0) return;
     try {
-      await addVolumePromo(product.id, newMinUnits, newPromoPrice);
-      const updated = await getProduct(product.id);
+      await addVolumePromo(savedProduct.id, units, price);
+      const updated = await getProduct(savedProduct.id);
       setPromos(updated.volume_promos);
-      setNewMinUnits(1);
-      setNewPromoPrice(0);
+      setNewMinUnits("");
+      setNewPromoPrice("");
       toast.success("Promo de volumen agregada");
     } catch (err: any) {
       toast.error(err.message);
@@ -140,9 +207,9 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleDeletePromo(promoId: string) {
-    if (!product) return;
+    if (!savedProduct) return;
     try {
-      await deleteVolumePromo(product.id, promoId);
+      await deleteVolumePromo(savedProduct.id, promoId);
       setPromos((prev) => prev.filter((p) => p.id !== promoId));
       toast.success("Promo eliminada");
     } catch (err: any) {
@@ -154,7 +221,9 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
     <div style={styles.container}>
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={onCancel}>&larr; Volver</button>
-        <h2 style={styles.title}>{isEdit ? "Editar Producto" : "Nuevo Producto"}</h2>
+        <h2 style={styles.title}>
+          {justCreated ? "Producto creado" : isEdit ? "Editar Producto" : "Nuevo Producto"}
+        </h2>
       </div>
 
       <div style={styles.grid}>
@@ -168,11 +237,11 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         </label>
         <label style={styles.label}>
           Precio
-          <input style={styles.input} type="number" step="0.01" value={form.price} onChange={(e) => setField("price", parseFloat(e.target.value) || 0)} />
+          <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.price} onChange={(e) => setField("price", parseFloat(e.target.value) || 0)} onWheel={(e) => e.currentTarget.blur()} />
         </label>
         <label style={styles.label}>
           Costo
-          <input style={styles.input} type="number" step="0.01" value={form.cost} onChange={(e) => setField("cost", parseFloat(e.target.value) || 0)} />
+          <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.cost} onChange={(e) => setField("cost", parseFloat(e.target.value) || 0)} onWheel={(e) => e.currentTarget.blur()} />
         </label>
         <label style={styles.label}>
           Categoria
@@ -186,6 +255,62 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
+        </label>
+        <label style={styles.label}>
+          Proveedor
+          <div ref={supplierRef} style={{ position: "relative" }}>
+            <input
+              ref={supplierInputRef}
+              style={{ ...styles.input, width: "100%", boxSizing: "border-box" as const }}
+              value={supplierSearch}
+              placeholder="Buscar proveedor..."
+              onChange={(e) => {
+                setSupplierSearch(e.target.value);
+                openSupplierDropdown();
+                if (!e.target.value) setField("supplier_id", "");
+              }}
+              onFocus={openSupplierDropdown}
+            />
+            {form.supplier_id && (
+              <button
+                style={styles.supplierClear}
+                onClick={() => { setField("supplier_id", ""); setSupplierSearch(""); }}
+                tabIndex={-1}
+              >✕</button>
+            )}
+            {supplierOpen && supplierDropdownPos && (
+              <div style={{
+                ...styles.supplierDropdown,
+                position: "fixed",
+                top: supplierDropdownPos.top,
+                left: supplierDropdownPos.left,
+                width: supplierDropdownPos.width,
+              }}>
+                <div
+                  style={styles.supplierOption}
+                  onMouseDown={() => selectSupplier("", "")}
+                >
+                  <span style={{ color: "#94a3b8" }}>Sin proveedor</span>
+                </div>
+                {filteredSuppliers.length === 0 && (
+                  <div style={{ ...styles.supplierOption, color: "#94a3b8" }}>Sin resultados</div>
+                )}
+                {filteredSuppliers.map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      ...styles.supplierOption,
+                      ...(s.id === form.supplier_id ? styles.supplierOptionActive : {}),
+                    }}
+                    onMouseDown={() => selectSupplier(s.id, s.name)}
+                  >
+                    {s.name}
+                    {s.rfc && <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 6 }}>{s.rfc}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </label>
         <label style={styles.label}>
           Descripcion
@@ -263,18 +388,24 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
             </div>
           ))}
           <div style={styles.subForm}>
-            <input style={styles.smallInput} type="number" placeholder="Cantidad" value={newMinUnits} onChange={(e) => setNewMinUnits(parseInt(e.target.value) || 1)} />
-            <input style={styles.smallInput} type="number" step="0.01" placeholder="Precio total paquete" value={newPromoPrice || ""} onChange={(e) => setNewPromoPrice(parseFloat(e.target.value) || 0)} />
+            <input style={styles.smallInput} type="text" inputMode="numeric" placeholder="Cantidad" value={newMinUnits} onChange={(e) => setNewMinUnits(e.target.value.replace(/[^0-9]/g, ""))} />
+            <input style={styles.smallInput} type="text" inputMode="decimal" placeholder="Precio total paquete" value={newPromoPrice} onChange={(e) => setNewPromoPrice(e.target.value.replace(/[^0-9.]/g, ""))} />
             <button style={styles.addSubBtn} onClick={handleAddPromo}>Agregar</button>
           </div>
         </div>
       )}
 
       <div style={styles.actions}>
-        <button style={styles.cancelBtn} onClick={onCancel}>Cancelar</button>
-        <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
-          {saving ? "Guardando..." : "Guardar"}
-        </button>
+        {justCreated ? (
+          <button style={styles.saveBtn} onClick={onSave}>Listo</button>
+        ) : (
+          <>
+            <button style={styles.cancelBtn} onClick={onCancel}>Cancelar</button>
+            <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
+              {saving ? "Guardando..." : "Guardar"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -306,6 +437,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     outline: "none",
   },
+  noSpin: {
+    MozAppearance: "textfield",
+    WebkitAppearance: "none",
+  } as React.CSSProperties,
   checkLabel: {
     display: "flex",
     alignItems: "center",
@@ -391,6 +526,41 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 600,
     whiteSpace: "nowrap",
+  },
+  supplierDropdown: {
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 8,
+    boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+    zIndex: 9999,
+    maxHeight: 220,
+    overflowY: "auto" as const,
+  },
+  supplierOption: {
+    padding: "8px 12px",
+    fontSize: 13,
+    cursor: "pointer",
+    color: "#0f172a",
+    display: "flex",
+    alignItems: "center",
+    borderBottom: "1px solid #f1f5f9",
+  },
+  supplierOptionActive: {
+    background: "#eff6ff",
+    fontWeight: 600,
+    color: "#2563eb",
+  },
+  supplierClear: {
+    position: "absolute" as const,
+    right: 8,
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#94a3b8",
+    fontSize: 12,
+    padding: 2,
   },
   actions: { display: "flex", gap: 8, marginTop: 16 },
   cancelBtn: {

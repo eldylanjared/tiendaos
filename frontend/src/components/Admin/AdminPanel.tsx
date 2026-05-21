@@ -5,16 +5,22 @@ import ProductManager from "@/components/Admin/ProductManager";
 import SalesHistory from "@/components/Admin/SalesHistory";
 import EmployeeManager from "@/components/Admin/EmployeeManager";
 import InventoryManager from "@/components/Admin/InventoryManager";
+import SupplierManager from "@/components/Admin/SupplierManager";
+import CategoryManager from "@/components/Admin/CategoryManager";
+import SistemaPanel from "@/components/Admin/SistemaPanel";
 
-type Tab = "dashboard" | "reports" | "products" | "sales" | "employees" | "inventory";
+type Tab = "dashboard" | "reports" | "products" | "categories" | "sales" | "employees" | "inventory" | "suppliers" | "sistema";
 
 const tabs: { key: Tab; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
   { key: "reports", label: "Reportes" },
   { key: "products", label: "Productos" },
+  { key: "categories", label: "Categorías" },
   { key: "sales", label: "Ventas" },
   { key: "employees", label: "Empleados" },
   { key: "inventory", label: "Inventario" },
+  { key: "suppliers", label: "Proveedores" },
+  { key: "sistema", label: "Sistema" },
 ];
 
 export default function AdminPanel() {
@@ -39,9 +45,12 @@ export default function AdminPanel() {
         {activeTab === "dashboard" && <Dashboard />}
         {activeTab === "reports" && <Reports />}
         {activeTab === "products" && <ProductManager />}
+        {activeTab === "categories" && <CategoryManager />}
         {activeTab === "sales" && <SalesHistory />}
         {activeTab === "employees" && <EmployeeManager />}
         {activeTab === "inventory" && <InventoryManager />}
+        {activeTab === "suppliers" && <SupplierManager />}
+        {activeTab === "sistema" && <SistemaPanel />}
       </div>
     </div>
   );

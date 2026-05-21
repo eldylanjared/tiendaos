@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { searchProducts, getCategories, toggleFavorite } from "@/services/api";
 import type { Product, Category } from "@/types";
 import toast from "react-hot-toast";
@@ -27,7 +27,7 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
 
   const loadProducts = useCallback((q: string) => {
     setLoading(true);
-    searchProducts(q, 100)
+    searchProducts(q, 5000)
       .then((p) => setProducts(p))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -36,6 +36,8 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
   function handleSearch(val: string) {
     setSearch(val);
     clearTimeout(debounceRef.current);
+    // If externalProducts provided, filter client-side (works offline too)
+    if (externalProducts) return;
     debounceRef.current = setTimeout(() => loadProducts(val), 250);
   }
 
@@ -52,9 +54,15 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
     }
   }
 
-  const displayProducts = favoritesOnly
-    ? products.filter((p) => p.is_favorite)
-    : products;
+  const displayProducts = useMemo(() => {
+    const base = externalProducts && search
+      ? products.filter((p) =>
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.barcode?.toLowerCase().includes(search.toLowerCase())
+        )
+      : products;
+    return favoritesOnly ? base.filter((p) => p.is_favorite) : base;
+  }, [products, search, externalProducts, favoritesOnly]);
 
   return (
     <div style={S.container}>

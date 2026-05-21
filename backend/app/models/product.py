@@ -38,7 +38,10 @@ class Product(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    supplier_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("suppliers.id"), nullable=True)
+
     category: Mapped["Category | None"] = relationship("Category", back_populates="products")
+    supplier: Mapped["Supplier | None"] = relationship("Supplier", back_populates="products")  # type: ignore
     barcodes: Mapped[list["ProductBarcode"]] = relationship("ProductBarcode", back_populates="product", cascade="all, delete-orphan")
     volume_promos: Mapped[list["VolumePromo"]] = relationship("VolumePromo", back_populates="product", cascade="all, delete-orphan")
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Sale } from "@/types";
 
 interface Props {
@@ -6,69 +7,126 @@ interface Props {
   onClose: () => void;
 }
 
+async function tryBackendPrint(sale: Sale, storeName: string): Promise<boolean> {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch("/api/receipts/print", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        store_name: storeName,
+        items: sale.items.map((i) => ({
+          product_name: i.product_name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          line_total: i.line_total,
+        })),
+        subtotal: sale.subtotal,
+        tax: sale.tax,
+        total: sale.total,
+        payment_method: sale.payment_method,
+        cash_received: sale.cash_received,
+        change_given: sale.change_given,
+        sale_id: sale.id,
+        created_at: sale.created_at,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function Receipt({ sale, storeName, onClose }: Props) {
+  const [printing, setPrinting] = useState(false);
   const date = new Date(sale.created_at);
 
+  async function handlePrint() {
+    setPrinting(true);
+    const printed = await tryBackendPrint(sale, storeName);
+    if (!printed) {
+      window.print();
+    }
+    setPrinting(false);
+  }
+
   return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={styles.receipt}>
-          <h3 style={styles.storeName}>{storeName}</h3>
-          <p style={styles.date}>
-            {date.toLocaleDateString("es-MX")} {date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
-          </p>
-          <div style={styles.divider} />
+    <>
+      {/* Print-only styles: hide everything except the receipt */}
+      <style>{`
+        @media print {
+          @page { size: 80mm auto; margin: 2mm 3mm; }
+          body > * { display: none !important; }
+          #receipt-printable { display: block !important; }
+          #receipt-printable * { visibility: visible !important; }
+        }
+      `}</style>
 
-          {sale.items.map((item) => (
-            <div key={item.id} style={styles.lineItem}>
-              <div style={styles.itemRow}>
-                <span>{item.quantity}x {item.product_name}</span>
-                <span>${item.line_total.toFixed(2)}</span>
+      <div style={styles.overlay} onClick={onClose}>
+        <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div id="receipt-printable" style={styles.receipt}>
+            <h3 style={styles.storeName}>{storeName}</h3>
+            <p style={styles.date}>
+              {date.toLocaleDateString("es-MX")}{" "}
+              {date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+            </p>
+            <div style={styles.divider} />
+
+            {sale.items.map((item) => (
+              <div key={item.id} style={styles.lineItem}>
+                <div style={styles.itemRow}>
+                  <span>{item.quantity}x {item.product_name}</span>
+                  <span>${item.line_total.toFixed(2)}</span>
+                </div>
+                {item.quantity > 1 && (
+                  <div style={styles.unitPrice}>${item.unit_price.toFixed(2)} c/u</div>
+                )}
               </div>
-              {item.quantity > 1 && (
-                <div style={styles.unitPrice}>${item.unit_price.toFixed(2)} c/u</div>
-              )}
+            ))}
+
+            <div style={styles.divider} />
+
+            <div style={styles.sumRow}>
+              <span>Subtotal</span><span>${sale.subtotal.toFixed(2)}</span>
             </div>
-          ))}
-
-          <div style={styles.divider} />
-
-          <div style={styles.sumRow}>
-            <span>Subtotal</span><span>${sale.subtotal.toFixed(2)}</span>
-          </div>
-          <div style={styles.sumRow}>
-            <span>IVA (16%)</span><span>${sale.tax.toFixed(2)}</span>
-          </div>
-          <div style={{ ...styles.sumRow, fontWeight: 700, fontSize: 16 }}>
-            <span>TOTAL</span><span>${sale.total.toFixed(2)}</span>
-          </div>
-
-          <div style={styles.divider} />
-
-          <div style={styles.sumRow}>
-            <span>Pago ({sale.payment_method})</span><span>${sale.cash_received.toFixed(2)}</span>
-          </div>
-          {sale.change_given > 0 && (
-            <div style={{ ...styles.sumRow, color: "#16a34a", fontWeight: 600 }}>
-              <span>Cambio</span><span>${sale.change_given.toFixed(2)}</span>
+            <div style={styles.sumRow}>
+              <span>IVA (16%)</span><span>${sale.tax.toFixed(2)}</span>
             </div>
-          )}
+            <div style={{ ...styles.sumRow, fontWeight: 700, fontSize: 16 }}>
+              <span>TOTAL</span><span>${sale.total.toFixed(2)}</span>
+            </div>
 
-          <div style={styles.divider} />
-          <p style={styles.thanks}>Gracias por su compra</p>
-          <p style={styles.ticketId}>Ticket: {sale.id.slice(0, 8).toUpperCase()}</p>
-        </div>
+            <div style={styles.divider} />
 
-        <div style={styles.actions}>
-          <button style={styles.printBtn} onClick={() => window.print()}>
-            Imprimir
-          </button>
-          <button style={styles.doneBtn} onClick={onClose}>
-            Nueva venta
-          </button>
+            <div style={styles.sumRow}>
+              <span>Pago ({sale.payment_method})</span>
+              <span>${sale.cash_received.toFixed(2)}</span>
+            </div>
+            {sale.change_given > 0 && (
+              <div style={{ ...styles.sumRow, color: "#16a34a", fontWeight: 600 }}>
+                <span>Cambio</span><span>${sale.change_given.toFixed(2)}</span>
+              </div>
+            )}
+
+            <div style={styles.divider} />
+            <p style={styles.thanks}>Gracias por su compra</p>
+            <p style={styles.ticketId}>Ticket: {sale.id.slice(0, 8).toUpperCase()}</p>
+          </div>
+
+          <div style={styles.actions} className="no-print">
+            <button style={styles.printBtn} onClick={handlePrint} disabled={printing}>
+              {printing ? "Imprimiendo..." : "Imprimir"}
+            </button>
+            <button style={styles.doneBtn} onClick={onClose}>
+              Nueva venta
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

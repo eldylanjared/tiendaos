@@ -7,9 +7,11 @@ import AdminPanel from "@/components/Admin/AdminPanel";
 import FinanceTracker from "@/components/Finance/FinanceTracker";
 import ChatPanel from "@/components/Chat/ChatPanel";
 import TicketBoard from "@/components/Tickets/TicketBoard";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { getStoredUser, clearAuth, isLoggedIn } from "@/store/auth";
 import { setAuthExpiredHandler } from "@/services/api";
 import { useKeepAlive } from "@/hooks/useKeepAlive";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 import type { User } from "@/types";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
@@ -50,6 +52,7 @@ export default function App() {
   const [view, setView] = useState<View>(INITIAL_ROUTE.view);
 
   const isKiosk = isKioskMode();
+  const offlineSync = useOfflineSync();
 
   // Keep screen awake + auto-refresh token + warn before close (if cart might have items)
   useKeepAlive({ warnBeforeClose: view === "terminal" });
@@ -101,14 +104,15 @@ export default function App() {
         view={view}
         onViewChange={INITIAL_ROUTE.locked ? undefined : setView}
         locked={INITIAL_ROUTE.locked}
+        offlineSync={offlineSync}
       />
-      {view === "terminal" && <Terminal storeName={STORE_NAME} />}
-      {view === "admin" && <AdminPanel />}
+      {view === "terminal" && <ErrorBoundary><Terminal storeName={STORE_NAME} /></ErrorBoundary>}
+      {view === "admin" && <ErrorBoundary><AdminPanel /></ErrorBoundary>}
       {view === "price-checker" && <PriceChecker storeName={STORE_NAME} />}
-      {view === "finance" && <div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} /></div>}
-      {view === "personal-finance" && <div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} personal /></div>}
-      {view === "tickets" && <div style={{ flex: 1, overflow: "hidden" }}><TicketBoard user={user} /></div>}
-      {view === "chat" && <div style={{ flex: 1, overflow: "hidden" }}><ChatPanel /></div>}
+      {view === "finance" && <ErrorBoundary><div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} /></div></ErrorBoundary>}
+      {view === "personal-finance" && <ErrorBoundary><div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} personal /></div></ErrorBoundary>}
+      {view === "tickets" && <ErrorBoundary><div style={{ flex: 1, overflow: "hidden" }}><TicketBoard user={user} /></div></ErrorBoundary>}
+      {view === "chat" && <ErrorBoundary><div style={{ flex: 1, overflow: "hidden" }}><ChatPanel /></div></ErrorBoundary>}
       <Toaster position="top-right" />
     </div>
   );

@@ -128,6 +128,53 @@ POS UI (React :3000) → FastAPI (:8000) → SQLite (local store)
 4. **[MEDIUM]** Inventory alerts: below-minimum stock, reorder suggestions, stock value total
 5. **[LOW]** Separate subdomains: pos.dylanlopez.com, precios.dylanlopez.com, admin.dylanlopez.com
 
+## Feature Checklist — VERIFY BEFORE EDITING
+
+When editing any of the files below, **read the file first and confirm every item in its checklist is still present after your change**. These features have been accidentally deleted in the past.
+
+### `frontend/src/components/Admin/AdminPanel.tsx`
+Tabs that MUST exist (in order):
+- Dashboard, Reportes, Productos, **Categorías**, Ventas, Empleados, Inventario, Proveedores, Sistema
+
+### `frontend/src/components/Layout/Header.tsx`
+Nav items that MUST exist:
+- Terminal, Precios, Admin, Finanzas, Mis Finanzas, Tickets, Chat
+- Offline badge (OfflineBadge), Sync status badge (SyncBadge), user name + role pill, Salir button, hamburger menu (mobile)
+
+### `frontend/src/components/Admin/ProductManager.tsx`
+Features that MUST be present:
+- Column visibility toggle (gear icon / columns picker)
+- Draggable column reorder
+- Resizable columns
+- Bulk select checkboxes + bulk delete / bulk activate buttons
+- CSV export + CSV import buttons
+- Barcode scan to filter (useBarcodeScanner hook)
+- Client-side search (name + barcode)
+- Category filter dropdown
+- Active/inactive filter toggle
+- Sort by any column (click header)
+- Stale-while-revalidate product fetch (instant load from cache)
+- Inline row click → opens ProductForm edit
+
+### `backend/app/routers/products.py`
+Endpoints that MUST exist:
+- `GET /products` (with `search`, `category_id`, `active_only`, `updated_since`, `limit` query params)
+- `POST /products`
+- `PATCH /products/{id}`
+- `DELETE /products/{id}`
+- `POST /products/import-csv`
+- `GET /products/export-csv`
+- `PATCH /products/bulk`
+- `GET /products/categories`
+- `POST /products/categories`
+- `PATCH /products/categories/{id}`
+- `DELETE /products/categories/{id}`
+- `GET /products/{id}/barcodes`
+- `POST /products/{id}/barcodes`
+- `DELETE /products/barcodes/{id}`
+
+---
+
 ## Phased Roadmap
 
 The project is built incrementally. Each phase is a set of features:

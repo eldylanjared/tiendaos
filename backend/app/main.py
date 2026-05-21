@@ -1,13 +1,17 @@
+import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
 from app.models import Store, User  # noqa: F401 — registers all models with Base
-from app.routers import auth, products, sales, stores, ai, admin, pricechecker, reports, finance, chat, tickets
+from app.routers import auth, products, sales, stores, ai, admin, pricechecker, reports, finance, chat, tickets, suppliers, sync as sync_router, receipts
 from app.services.auth import hash_password
+from app.services.sync import sync_loop
 
 settings = get_settings()
 
@@ -39,7 +43,9 @@ def seed_initial_data():
 async def lifespan(_app: FastAPI):
     init_db()
     seed_initial_data()
+    task = asyncio.create_task(sync_loop())
     yield
+    task.cancel()
 
 
 app = FastAPI(
@@ -68,8 +74,27 @@ app.include_router(reports.router)
 app.include_router(finance.router)
 app.include_router(tickets.router)
 app.include_router(chat.router)
+app.include_router(suppliers.router)
+app.include_router(sync_router.router)
+app.include_router(receipts.router)
 
 
 @app.get("/api/health")
 def health():
     return {"status": "ok", "store_id": settings.store_id, "store_name": settings.store_name}
+
+
+@app.get("/api/store/info")
+def store_info():
+    return {
+        "name": settings.store_name,
+        "address": getattr(settings, "store_address", ""),
+        "rfc": getattr(settings, "store_rfc", ""),
+    }
+
+
+# Serve the React frontend on local installs (no nginx).
+# Must be mounted LAST so API routes take priority.
+_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if _dist.exists():
+    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="static")

@@ -211,21 +211,65 @@ def create_category(
     return cat
 
 
+@router.patch("/categories/{category_id}", response_model=CategoryResponse)
+def update_category(
+    category_id: str,
+    data: CategoryCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    cat = db.query(Category).filter(Category.id == category_id).first()
+    if not cat:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Category not found")
+    cat.name = data.name
+    cat.color = data.color
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+
+@router.delete("/categories/{category_id}")
+def delete_category(
+    category_id: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    cat = db.query(Category).filter(Category.id == category_id).first()
+    if not cat:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Category not found")
+    # Unlink products before deleting
+    db.query(Product).filter(Product.category_id == category_id).update({"category_id": None})
+    db.delete(cat)
+    db.commit()
+    return {"ok": True}
+
+
 # --- Products ---
 
 @router.get("", response_model=list[ProductResponse])
 def list_products(
     search: str = Query("", description="Search by name or barcode"),
     category_id: str | None = Query(None),
+    supplier_id: str | None = Query(None),
     active_only: bool = Query(True),
     limit: int = Query(50, le=5000),
     offset: int = Query(0),
+    updated_since: str | None = Query(None, description="ISO datetime — return only products updated after this time"),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     q = db.query(Product)
     if active_only:
         q = q.filter(Product.is_active == True)
+    if updated_since:
+        try:
+            from datetime import datetime
+            since_dt = datetime.fromisoformat(updated_since.replace("Z", "+00:00"))
+            q = q.filter(Product.updated_at >= since_dt)
+        except ValueError:
+            pass
     if search:
         # Also search pack barcodes
         pack_product_ids = (
@@ -236,11 +280,13 @@ def list_products(
         pack_ids = [pid for (pid,) in pack_product_ids]
         q = q.filter(
             (Product.name.ilike(f"%{search}%"))
-            | (Product.barcode == search)
+            | (Product.barcode.ilike(f"%{search}%"))
             | (Product.id.in_(pack_ids))
         )
     if category_id:
         q = q.filter(Product.category_id == category_id)
+    if supplier_id:
+        q = q.filter(Product.supplier_id == supplier_id)
     return q.order_by(Product.name).offset(offset).limit(limit).all()
 
 
@@ -313,6 +359,51 @@ def update_product(
     db.commit()
     db.refresh(product)
     return product
+
+
+@router.delete("/{product_id}")
+def delete_product(
+    product_id: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    db.delete(product)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/bulk-delete")
+def bulk_delete_products(
+    data: dict,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    ids: list[str] = data.get("ids", [])
+    deleted = db.query(Product).filter(Product.id.in_(ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}
+
+
+@router.post("/bulk-patch")
+def bulk_patch_products(
+    data: dict,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    ids: list[str] = data.get("ids", [])
+    updates: dict = data.get("updates", {})
+    if not ids or not updates:
+        raise HTTPException(status_code=400, detail="ids and updates required")
+    allowed = {"is_active", "category_id"}
+    filtered = {k: v for k, v in updates.items() if k in allowed}
+    if not filtered:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    db.query(Product).filter(Product.id.in_(ids)).update(filtered, synchronize_session=False)
+    db.commit()
+    return {"updated": len(ids)}
 
 
 # --- Stock Adjustments ---

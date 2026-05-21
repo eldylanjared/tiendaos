@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     # Store
     store_id: str = "store-1"
     store_name: str = "Tienda Centro"
+    store_address: str = ""
+    store_rfc: str = ""
 
     # Auth
     secret_key: str = "change-this-to-a-random-secret-key-at-least-32-chars"
@@ -33,12 +35,16 @@ class Settings(BaseSettings):
     ai_customer_insights: bool = False
 
     # Sync
-    cloud_api_url: str = ""
-    sync_interval_seconds: int = 60
+    cloud_api_url: str = ""          # e.g. https://dylanlopez.com/api
+    cloud_sync_user: str = "admin"   # cloud admin username
+    cloud_sync_password: str = ""    # cloud admin password
+    is_local_instance: bool = False  # set True on local installs
+    sync_interval_seconds: int = 300 # 5 minutes
 
     # Receipt Printer
     printer_type: str = "thermal"
     printer_name: str = "default"
+    printer_port: str = ""  # e.g. /dev/usb/lp0 (USB) or 192.168.1.100:9100 (network)
 
     # Business
     currency: str = "MXN"
