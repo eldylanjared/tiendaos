@@ -43,7 +43,7 @@ bash scripts/setup_ollama.sh
 Copy `.env.example` to `.env` before running. Key settings:
 - `STORE_ID` / `STORE_NAME` — unique per-store deployment
 - `DATABASE_URL` — defaults to SQLite (`sqlite:///./data/tiendaos.db`), switch to PostgreSQL for cloud central
-- `TAX_RATE=0.16` — Mexico IVA
+- `TAX_RATE=0.0` — No IVA (tax disabled)
 - `AI_*` flags — each AI module toggles independently to save resources
 - `OLLAMA_URL` / `OLLAMA_MODEL` — local GPU inference (RTX 5070 available)
 
@@ -102,12 +102,31 @@ POS UI (React :3000) → FastAPI (:8000) → SQLite (local store)
 
 ## Key Conventions
 
-- **Currency**: All prices in MXN (Mexican Pesos), `Float` type, 16% IVA tax
+- **Currency**: All prices in MXN (Mexican Pesos), `Float` type, no IVA (TAX_RATE=0.0)
 - **Auth**: JWT tokens for API access + 4-digit PIN for fast cashier POS login
 - **IDs**: UUID strings as primary keys across all models
 - **Passwords**: hashed via `bcrypt` directly (not passlib — incompatible with bcrypt 5.x); JWT via `python-jose`
 - **Receipts**: thermal printer support via `python-escpos`
 - **Offline resilience**: SQLite WAL mode + foreign keys enforced via pragmas
+
+## Current State (as of 2026-05-20)
+- [x] POS Terminal: 50/50 layout, favorites, barcode scanning, bundle volume pricing
+- [x] Price checker: fully responsive kiosk mode (`/precios`, no login required)
+- [x] Admin product table: sortable, toggleable columns, pagination
+- [x] Business finance (Finanzas): expenses, income, nomina, receipt OCR
+- [x] Personal finance (Mis Finanzas): per-employee categories, nomina auto-income
+- [x] Full responsive layout for all screen sizes
+- [x] Production live at dylanlopez.com | Staging at staging.dylanlopez.com
+- [ ] Automated backups — not set up yet (risk: DB loss if VPS fails)
+- [ ] Dashboard — no daily/hourly sales view exists yet
+- [ ] Inventory alerts — no low-stock notifications yet
+
+## Next Steps (priority order)
+1. **[HIGH — risk]** Set up automated daily backups to Backblaze B2
+2. **[HIGH]** Build sales dashboard: today's sales, avg ticket, sales by hour, top products
+3. **[MEDIUM]** Reports: daily/weekly/monthly sales, product profitability, category performance
+4. **[MEDIUM]** Inventory alerts: below-minimum stock, reorder suggestions, stock value total
+5. **[LOW]** Separate subdomains: pos.dylanlopez.com, precios.dylanlopez.com, admin.dylanlopez.com
 
 ## Phased Roadmap
 
