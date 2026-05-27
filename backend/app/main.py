@@ -4,7 +4,17 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+
+class SPAStaticFiles(StaticFiles):
+    """Serve index.html for unknown paths so React Router handles navigation."""
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except Exception:
+            return FileResponse(str(Path(self.directory) / "index.html"))
 
 from app.config import get_settings
 from app.database import init_db, get_db, SessionLocal
@@ -97,4 +107,4 @@ def store_info():
 # Must be mounted LAST so API routes take priority.
 _dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if _dist.exists():
-    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="static")
+    app.mount("/", SPAStaticFiles(directory=str(_dist), html=True), name="static")
