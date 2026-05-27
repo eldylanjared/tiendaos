@@ -88,7 +88,7 @@ async def pull_products(db: Session) -> str:
             for p_data in products_data:
                 product = db.query(Product).filter(Product.id == p_data["id"]).first()
                 if product:
-                    for field in ["name", "barcode", "description", "category_id", "supplier_id",
+                    for field in ["name", "barcode", "description", "category_id",
                                   "price", "cost", "min_stock", "image_url", "is_active",
                                   "is_favorite", "sell_by_weight"]:
                         setattr(product, field, p_data.get(field, getattr(product, field)))
@@ -100,7 +100,6 @@ async def pull_products(db: Session) -> str:
                         name=p_data["name"],
                         description=p_data.get("description", ""),
                         category_id=p_data.get("category_id"),
-                        supplier_id=p_data.get("supplier_id"),
                         price=p_data["price"],
                         cost=p_data.get("cost", 0),
                         stock=p_data.get("stock", 0),
