@@ -23,25 +23,12 @@ from app.models.finance import FinanceEntry
 logger = logging.getLogger("sync")
 settings = get_settings()
 
-_cloud_token: str | None = None
-
-
-async def _get_cloud_token() -> str | None:
-    global _cloud_token
-    if _cloud_token:
-        return _cloud_token
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.post(
-                f"{settings.cloud_api_url}/auth/login",
-                json={"username": settings.cloud_sync_user, "password": settings.cloud_sync_password},
-            )
-            if r.status_code == 200:
-                _cloud_token = r.json().get("access_token")
-                return _cloud_token
-    except Exception as e:
-        logger.warning(f"Cloud login failed: {e}")
-    return None
+def _sync_headers() -> dict:
+    """Return auth headers for VPS sync calls."""
+    if settings.sync_api_key:
+        return {"X-Sync-API-Key": settings.sync_api_key}
+    # Legacy fallback: re-use JWT (deprecated — set SYNC_API_KEY instead)
+    return {}
 
 
 def _get_meta(db: Session, key: str) -> SyncMeta:
@@ -63,9 +50,9 @@ def _set_meta(db: Session, key: str, result: str):
 
 async def pull_products(db: Session) -> str:
     """Pull products and categories from cloud → local."""
-    token = await _get_cloud_token()
-    if not token:
-        return "no_token"
+    headers = _sync_headers()
+    if not headers:
+        return "no_sync_key"
 
     meta = _get_meta(db, "pull_products")
     since = meta.last_synced_at.isoformat() if meta.last_synced_at else ""
@@ -73,32 +60,28 @@ async def pull_products(db: Session) -> str:
     if since:
         params["updated_since"] = since
 
-    headers = {"Authorization": f"Bearer {token}"}
-
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            # Pull categories first
-            r = await client.get(f"{settings.cloud_api_url}/products/categories", headers=headers)
-            if r.status_code == 200:
-                for cat_data in r.json():
-                    cat = db.query(Category).filter(Category.id == cat_data["id"]).first()
-                    if cat:
-                        cat.name = cat_data["name"]
-                        cat.color = cat_data.get("color", "#3B82F6")
-                    else:
-                        db.add(Category(
-                            id=cat_data["id"],
-                            name=cat_data["name"],
-                            color=cat_data.get("color", "#3B82F6"),
-                        ))
-                db.commit()
-
-            # Pull products
-            r = await client.get(f"{settings.cloud_api_url}/products", headers=headers, params=params)
+            r = await client.get(f"{settings.cloud_api_url}/sync/products", headers=headers, params=params)
             if r.status_code != 200:
                 return f"error_{r.status_code}"
 
-            products_data = r.json()
+            payload = r.json()
+
+            for cat_data in payload.get("categories", []):
+                cat = db.query(Category).filter(Category.id == cat_data["id"]).first()
+                if cat:
+                    cat.name = cat_data["name"]
+                    cat.color = cat_data.get("color", "#3B82F6")
+                else:
+                    db.add(Category(
+                        id=cat_data["id"],
+                        name=cat_data["name"],
+                        color=cat_data.get("color", "#3B82F6"),
+                    ))
+            db.commit()
+
+            products_data = payload.get("products", [])
             updated = 0
             created = 0
 
@@ -141,15 +124,13 @@ async def pull_products(db: Session) -> str:
 
 async def push_sales(db: Session) -> str:
     """Push unsynced local sales → cloud."""
-    token = await _get_cloud_token()
-    if not token:
-        return "no_token"
+    headers = _sync_headers()
+    if not headers:
+        return "no_sync_key"
 
     unsynced = db.query(Sale).filter(Sale.synced_at == None).all()  # noqa
     if not unsynced:
         return "ok: nothing to sync"
-
-    headers = {"Authorization": f"Bearer {token}"}
     pushed = 0
     errors = 0
 

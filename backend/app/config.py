@@ -36,10 +36,11 @@ class Settings(BaseSettings):
 
     # Sync
     cloud_api_url: str = ""          # e.g. https://dylanlopez.com/api
-    cloud_sync_user: str = "admin"   # cloud admin username
-    cloud_sync_password: str = ""    # cloud admin password
+    cloud_sync_user: str = "admin"   # cloud admin username (legacy, replaced by api key)
+    cloud_sync_password: str = ""    # cloud admin password (legacy, replaced by api key)
+    sync_api_key: str = ""           # per-store API key issued by VPS on registration
     is_local_instance: bool = False  # set True on local installs
-    sync_interval_seconds: int = 300 # 5 minutes
+    sync_interval_seconds: int = 120 # 2 minutes
 
     # Receipt Printer
     printer_type: str = "thermal"

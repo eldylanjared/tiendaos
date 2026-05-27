@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 import bcrypt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -53,3 +53,17 @@ def require_role(*roles: str):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return current_user
     return dependency
+
+
+def require_sync_key(
+    x_sync_api_key: str | None = Header(None, alias="X-Sync-API-Key"),
+    db: Session = Depends(get_db),
+):
+    """Authenticate a local store instance by its sync API key."""
+    from app.models.store import Store  # local import avoids circular dependency
+    if not x_sync_api_key:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-Sync-API-Key header")
+    store = db.query(Store).filter(Store.sync_api_key == x_sync_api_key, Store.is_active == True).first()
+    if not store:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid sync API key")
+    return store

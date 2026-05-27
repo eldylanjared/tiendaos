@@ -47,6 +47,7 @@ def _run_migrations():
     migrations = [
         ("products", "supplier_id", "VARCHAR(36) REFERENCES suppliers(id)"),
         ("sales", "synced_at", "DATETIME"),
+        ("stores", "sync_api_key", "VARCHAR(64) UNIQUE"),
     ]
     with engine.connect() as conn:
         for table, column, col_def in migrations:

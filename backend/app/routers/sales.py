@@ -10,7 +10,7 @@ from app.models.product import Product, VolumePromo
 from app.models.sale import Sale, SaleItem
 from app.models.user import User
 from app.schemas.sale import SaleCreate, SaleResponse, DailySummary, TopProduct, SaleImportPayload
-from app.services.auth import get_current_user, require_role
+from app.services.auth import get_current_user, require_role, require_sync_key
 
 settings = get_settings()
 router = APIRouter(prefix="/api/sales", tags=["sales"])
@@ -203,9 +203,9 @@ def daily_summary(
 def sync_import_sale(
     data: SaleImportPayload,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_role("admin", "manager")),
+    _store=Depends(require_sync_key),
 ):
-    """Idempotent sale import from local instances. Uses the sale's original ID."""
+    """Idempotent sale import from local store instances. Authenticated by store API key."""
     existing = db.query(Sale).filter(Sale.id == data.id).first()
     if existing:
         raise HTTPException(status_code=409, detail="Sale already exists")

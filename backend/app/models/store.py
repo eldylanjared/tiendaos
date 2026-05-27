@@ -15,6 +15,7 @@ class Store(Base):
     address: Mapped[str] = mapped_column(String(255), default="")
     phone: Mapped[str] = mapped_column(String(20), default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sync_api_key: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     users: Mapped[list["User"]] = relationship("User", back_populates="store")
