@@ -44,17 +44,22 @@ def _run_migrations():
     """Apply safe column additions for SQLite (ALTER TABLE ADD COLUMN IF NOT EXISTS)."""
     if not settings.database_url.startswith("sqlite"):
         return
+    from sqlalchemy import text
     migrations = [
         ("products", "supplier_id", "VARCHAR(36) REFERENCES suppliers(id)"),
         ("sales", "synced_at", "DATETIME"),
-        ("stores", "sync_api_key", "VARCHAR(64) UNIQUE"),
+        ("stores", "sync_api_key", "VARCHAR(64)"),
     ]
     with engine.connect() as conn:
         for table, column, col_def in migrations:
             try:
-                conn.execute(__import__("sqlalchemy").text(
-                    f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"
-                ))
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"))
                 conn.commit()
             except Exception:
                 pass  # Column already exists
+        # Unique index for sync_api_key (can't use UNIQUE inline in SQLite ADD COLUMN)
+        try:
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_stores_sync_api_key ON stores(sync_api_key)"))
+            conn.commit()
+        except Exception:
+            pass
