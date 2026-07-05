@@ -1,4 +1,6 @@
 import asyncio
+import os
+import signal
 import subprocess
 from pathlib import Path
 
@@ -12,6 +14,11 @@ from app.services.auth import get_current_user, require_role, hash_password
 
 # Repo root: backend/app/routers/admin.py → go up 3 levels
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+# Store PCs run Windows; the VPS runs Linux — tool paths differ
+IS_WINDOWS = os.name == "nt"
+PIP = REPO_ROOT / "backend" / ".venv" / ("Scripts/pip.exe" if IS_WINDOWS else "bin/pip")
+NPM = "npm.cmd" if IS_WINDOWS else "npm"
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -62,18 +69,23 @@ async def system_update(
     run_step("Git pull", ["git", "pull", "origin", "master"], REPO_ROOT)
     run_step(
         "Dependencias backend",
-        [str(REPO_ROOT / "backend" / ".venv" / "bin" / "pip"), "install", "-r", "requirements.txt", "-q"],
+        [str(PIP), "install", "-r", "requirements.txt", "-q"],
         REPO_ROOT / "backend",
     )
-    run_step("Build frontend", ["npm", "run", "build"], REPO_ROOT / "frontend")
+    run_step("Dependencias frontend", [NPM, "install", "--silent"], REPO_ROOT / "frontend")
+    run_step("Build frontend", [NPM, "run", "build"], REPO_ROOT / "frontend")
 
     after = _git_info()
     log_lines.append(f"\n=== Listo — version {after['commit']}: {after['message']} ===")
 
-    # Restart service in background after response is sent
+    # Restart after the response is sent. On Windows there is no systemctl —
+    # exiting the process is enough: start.bat relaunches uvicorn in 5s.
     async def restart():
         await asyncio.sleep(2)
-        subprocess.Popen(["systemctl", "restart", "tiendaos"], start_new_session=True)
+        if IS_WINDOWS:
+            os.kill(os.getpid(), signal.SIGTERM)
+        else:
+            subprocess.Popen(["systemctl", "restart", "tiendaos"], start_new_session=True)
 
     background_tasks.add_task(restart)
 

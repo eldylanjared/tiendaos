@@ -5,16 +5,19 @@ import toast from "react-hot-toast";
 
 interface Props {
   onSelect: (product: Product) => void;
+  /** When set (POS), products with volume promos get a picker to add 6, 12, ... at once */
+  onSelectQty?: (product: Product, qty: number) => void;
   favoritesOnly?: boolean;
   products?: Product[];
   onProductsChange?: (products: Product[]) => void;
 }
 
-export default function ProductGrid({ onSelect, favoritesOnly, products: externalProducts, onProductsChange }: Props) {
+export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, products: externalProducts, onProductsChange }: Props) {
   const [internalProducts, setInternalProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [promoProduct, setPromoProduct] = useState<Product | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const products = externalProducts ?? internalProducts;
@@ -121,10 +124,20 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
                 )}
               </div>
 
-              {/* Col 4: Price */}
+              {/* Col 4: Promo qty picker (only in POS, only with promos) */}
+              {onSelectQty && (p.volume_promos?.length ?? 0) > 0 && (
+                <button
+                  style={S.promoBtn}
+                  onClick={(e) => { e.stopPropagation(); setPromoProduct(p); }}
+                >
+                  6+
+                </button>
+              )}
+
+              {/* Col 5: Price */}
               <span style={S.price}>${p.price.toFixed(2)}</span>
 
-              {/* Col 5: Stock */}
+              {/* Col 6: Stock */}
               <span style={{
                 ...S.stock,
                 color: p.stock <= p.min_stock ? "#ef4444" : "#22c55e",
@@ -135,11 +148,102 @@ export default function ProductGrid({ onSelect, favoritesOnly, products: externa
           );
         })}
       </div>
+
+      {/* Promo quantity picker */}
+      {promoProduct && onSelectQty && (
+        <div style={S.promoOverlay} onClick={() => setPromoProduct(null)}>
+          <div style={S.promoPanel} onClick={(e) => e.stopPropagation()}>
+            <h3 style={S.promoTitle}>{promoProduct.name}</h3>
+            <button
+              style={S.promoOption}
+              onClick={() => { onSelectQty(promoProduct, 1); setPromoProduct(null); }}
+            >
+              <span>1 unidad</span>
+              <span style={S.promoOptPrice}>${promoProduct.price.toFixed(2)}</span>
+            </button>
+            {[...(promoProduct.volume_promos ?? [])]
+              .sort((a, b) => a.min_units - b.min_units)
+              .map((vp) => (
+                <button
+                  key={vp.id}
+                  style={S.promoOption}
+                  onClick={() => { onSelectQty(promoProduct, vp.min_units); setPromoProduct(null); }}
+                >
+                  <span>{vp.min_units} unidades</span>
+                  <span style={S.promoOptPrice}>
+                    ${vp.promo_price.toFixed(2)}
+                    <span style={S.promoOptUnit}> (${(vp.promo_price / vp.min_units).toFixed(2)} c/u)</span>
+                  </span>
+                </button>
+              ))}
+            <button style={S.promoCancel} onClick={() => setPromoProduct(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 const S: Record<string, React.CSSProperties> = {
+  promoBtn: {
+    flexShrink: 0,
+    padding: "6px 10px",
+    borderRadius: 8,
+    border: "1px solid #2563eb",
+    background: "#eff6ff",
+    color: "#2563eb",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  promoOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15, 23, 42, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 60,
+    padding: 16,
+  },
+  promoPanel: {
+    background: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    width: "100%",
+    maxWidth: 360,
+    maxHeight: "80vh",
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  promoTitle: { margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: "#0f172a", textAlign: "center" },
+  promoOption: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 16px",
+    borderRadius: 10,
+    border: "1px solid #e2e8f0",
+    background: "#f8fafc",
+    cursor: "pointer",
+    fontSize: 15,
+    fontWeight: 600,
+    color: "#0f172a",
+  },
+  promoOptPrice: { fontWeight: 700, color: "#2563eb" },
+  promoOptUnit: { fontSize: 11, fontWeight: 500, color: "#64748b" },
+  promoCancel: {
+    marginTop: 4,
+    padding: "10px",
+    borderRadius: 8,
+    border: "none",
+    background: "transparent",
+    color: "#64748b",
+    cursor: "pointer",
+    fontSize: 13,
+  },
   container: {
     display: "flex",
     flexDirection: "column",
