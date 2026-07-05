@@ -135,7 +135,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     height: "100%",
     background: "#fff",
-    borderLeft: "1px solid #e2e8f0",
+    borderRight: "1px solid #e2e8f0",
   },
   header: {
     display: "flex",

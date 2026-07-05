@@ -47,6 +47,7 @@ function injectTerminalStyles() {
         flex: 1;
         min-width: 0;
         min-height: 40vh;
+        order: 1;
       }
       .tos-terminal-cart {
         max-width: 100%;
@@ -54,6 +55,7 @@ function injectTerminalStyles() {
         flex: 1;
         min-height: 0;
         border-top: 1px solid #e2e8f0;
+        order: 2;
       }
     }
   `;
@@ -136,6 +138,11 @@ export default function Terminal({ storeName }: Props) {
     cart.addProduct(product);
   }
 
+  function handleSelectQty(product: Product, qty: number) {
+    cart.addProduct(product, qty);
+    toast.success(`${product.name} x${qty} agregado`);
+  }
+
   function handleVariosConfirm(price: number) {
     if (variosProduct) {
       cart.addProduct(variosProduct, 1, 1, price);
@@ -190,6 +197,18 @@ export default function Terminal({ storeName }: Props) {
       </div>
     )}
     <div className="tos-terminal">
+      <div className="tos-terminal-cart">
+        <Cart
+          items={cart.items}
+          subtotal={cart.subtotal}
+          tax={cart.tax}
+          total={cart.total}
+          onUpdateQty={cart.updateQuantity}
+          onRemove={cart.removeItem}
+          onClear={cart.clearCart}
+          onPay={() => setShowPayment(true)}
+        />
+      </div>
       <div className="tos-terminal-products">
         <div style={styles.panelHeader}>
           <button
@@ -210,21 +229,10 @@ export default function Terminal({ storeName }: Props) {
         </div>
         <ProductGrid
           onSelect={handleSelectProduct}
+          onSelectQty={handleSelectQty}
           favoritesOnly={!showAllProducts}
           products={products}
           onProductsChange={setProducts}
-        />
-      </div>
-      <div className="tos-terminal-cart">
-        <Cart
-          items={cart.items}
-          subtotal={cart.subtotal}
-          tax={cart.tax}
-          total={cart.total}
-          onUpdateQty={cart.updateQuantity}
-          onRemove={cart.removeItem}
-          onClear={cart.clearCart}
-          onPay={() => setShowPayment(true)}
         />
       </div>
 
