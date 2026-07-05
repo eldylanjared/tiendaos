@@ -62,6 +62,8 @@ export default function Receipt({ sale, storeName, onClose }: Props) {
           body > * { display: none !important; }
           #receipt-printable { display: block !important; }
           #receipt-printable * { visibility: visible !important; }
+          /* Undo the on-screen scroll cap so long receipts print in full */
+          #receipt-printable { overflow: visible !important; max-height: none !important; }
         }
       `}</style>
 
@@ -140,8 +142,21 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     zIndex: 1000,
   },
-  modal: { background: "#fff", borderRadius: 16, padding: 24, width: 340 },
-  receipt: { fontFamily: "'Courier New', monospace", fontSize: 13 },
+  modal: {
+    background: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: 340,
+    maxHeight: "90vh",
+    display: "flex",
+    flexDirection: "column",
+  },
+  receipt: {
+    fontFamily: "'Courier New', monospace",
+    fontSize: 13,
+    overflowY: "auto",
+    minHeight: 0,
+  },
   storeName: { textAlign: "center", margin: "0 0 4px", fontSize: 16 },
   date: { textAlign: "center", color: "#64748b", margin: "0 0 8px", fontSize: 12 },
   divider: { borderTop: "1px dashed #cbd5e1", margin: "8px 0" },
@@ -151,7 +166,7 @@ const styles: Record<string, React.CSSProperties> = {
   sumRow: { display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 2 },
   thanks: { textAlign: "center", margin: "8px 0 4px", fontSize: 12 },
   ticketId: { textAlign: "center", margin: 0, fontSize: 10, color: "#94a3b8" },
-  actions: { display: "flex", gap: 8, marginTop: 16 },
+  actions: { display: "flex", gap: 8, marginTop: 16, flexShrink: 0 },
   printBtn: {
     flex: 1,
     padding: "10px",
