@@ -85,11 +85,18 @@ Set-Location "$INSTALL_DIR\frontend"
 npm install --silent
 npm run build
 
-# Create start.bat using array to avoid here-string issues
+# Create start.bat using array to avoid here-string issues.
+# The loop restarts uvicorn if it ever crashes; output goes to a log file.
 $batLines = @(
     "@echo off",
     "cd /d C:\TiendaOS\backend",
-    ".venv\Scripts\uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    "if not exist C:\TiendaOS\logs mkdir C:\TiendaOS\logs",
+    ":loop",
+    "echo [%date% %time%] Iniciando TiendaOS >> C:\TiendaOS\logs\server.log",
+    ".venv\Scripts\uvicorn app.main:app --host 0.0.0.0 --port 8000 >> C:\TiendaOS\logs\server.log 2>&1",
+    "echo [%date% %time%] Servidor termino, reiniciando en 5s >> C:\TiendaOS\logs\server.log",
+    "timeout /t 5 /nobreak > nul",
+    "goto loop"
 )
 $batLines | Set-Content -Path "C:\TiendaOS\start.bat" -Encoding ASCII
 
@@ -98,11 +105,17 @@ Write-Host ""
 Write-Host "--- Registrando inicio automatico ---"
 $action    = New-ScheduledTaskAction -Execute "C:\TiendaOS\start.bat"
 $trigger   = New-ScheduledTaskTrigger -AtLogOn
-$settings  = New-ScheduledTaskSettingsSet -Hidden
+# ExecutionTimeLimit Zero: sin esto Windows MATA la tarea a las 72 horas (default).
+$settings  = New-ScheduledTaskSettingsSet -Hidden `
+    -ExecutionTimeLimit ([TimeSpan]::Zero) `
+    -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) `
+    -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+    -MultipleInstances IgnoreNew
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
 Unregister-ScheduledTask -TaskName "TiendaOS" -Confirm:$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName "TiendaOS" -Action $action -Trigger $trigger -Settings $settings -Principal $principal | Out-Null
-Write-Host "  TiendaOS arrancara automaticamente al iniciar Windows." -ForegroundColor Green
+Write-Host "  TiendaOS arrancara automaticamente al iniciar sesion en Windows." -ForegroundColor Green
+Write-Host "  Si el servidor falla, se reinicia solo. Logs: C:\TiendaOS\logs\server.log" -ForegroundColor Green
 
 # Start now
 Write-Host ""
