@@ -9,14 +9,13 @@ import ChatPanel from "@/components/Chat/ChatPanel";
 import TicketBoard from "@/components/Tickets/TicketBoard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { getStoredUser, clearAuth, isLoggedIn } from "@/store/auth";
-import { setAuthExpiredHandler } from "@/services/api";
+import { setAuthExpiredHandler, getStoreInfo } from "@/services/api";
 import { useKeepAlive } from "@/hooks/useKeepAlive";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import type { User } from "@/types";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
 
-const STORE_NAME = "Tienda Centro"; // Loaded from backend in Phase 2
 
 type View = "terminal" | "admin" | "price-checker" | "finance" | "personal-finance" | "tickets" | "chat";
 
@@ -50,6 +49,11 @@ function isKioskMode(): boolean {
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<View>(INITIAL_ROUTE.view);
+  const [storeName, setStoreName] = useState("");
+
+  useEffect(() => {
+    getStoreInfo().then((info) => setStoreName(info.name || "TiendaOS"));
+  }, []);
 
   const isKiosk = isKioskMode();
   const offlineSync = useOfflineSync();
@@ -80,7 +84,7 @@ export default function App() {
   if (isKiosk) {
     return (
       <>
-        <PriceChecker storeName={STORE_NAME} />
+        <PriceChecker storeName={storeName} />
         <Toaster position="top-center" />
       </>
     );
@@ -99,16 +103,16 @@ export default function App() {
     <div style={styles.app}>
       <Header
         user={user}
-        storeName={STORE_NAME}
+        storeName={storeName}
         onLogout={handleLogout}
         view={view}
         onViewChange={INITIAL_ROUTE.locked ? undefined : setView}
         locked={INITIAL_ROUTE.locked}
         offlineSync={offlineSync}
       />
-      {view === "terminal" && <ErrorBoundary><Terminal storeName={STORE_NAME} /></ErrorBoundary>}
+      {view === "terminal" && <ErrorBoundary><Terminal storeName={storeName} /></ErrorBoundary>}
       {view === "admin" && <ErrorBoundary><AdminPanel /></ErrorBoundary>}
-      {view === "price-checker" && <PriceChecker storeName={STORE_NAME} />}
+      {view === "price-checker" && <PriceChecker storeName={storeName} />}
       {view === "finance" && <ErrorBoundary><div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} /></div></ErrorBoundary>}
       {view === "personal-finance" && <ErrorBoundary><div style={{ flex: 1, overflow: "auto" }}><FinanceTracker user={user} personal /></div></ErrorBoundary>}
       {view === "tickets" && <ErrorBoundary><div style={{ flex: 1, overflow: "hidden" }}><TicketBoard user={user} /></div></ErrorBoundary>}
