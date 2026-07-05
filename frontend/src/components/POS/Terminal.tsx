@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import ProductGrid from "@/components/Products/ProductGrid";
+import SalesHistory from "@/components/Admin/SalesHistory";
 import Cart from "@/components/POS/Cart";
 import PaymentModal from "@/components/POS/PaymentModal";
 import Receipt from "@/components/POS/Receipt";
@@ -71,6 +72,7 @@ export default function Terminal({ storeName }: Props) {
   const [weightProduct, setWeightProduct] = useState<Product | null>(null);
   const [variosProduct, setVariosProduct] = useState<Product | null>(null);
   const [showAllProducts, setShowAllProducts] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Shared products state so starring in "Todos" updates "Favoritos" instantly
   const [products, setProducts] = useState<Product[]>([]);
@@ -182,6 +184,9 @@ export default function Terminal({ storeName }: Props) {
           >
             Todos
           </button>
+          <button style={styles.historyBtn} onClick={() => setShowHistory(true)}>
+            🕒 Ventas
+          </button>
         </div>
         <ProductGrid
           onSelect={handleSelectProduct}
@@ -210,6 +215,20 @@ export default function Terminal({ storeName }: Props) {
           onComplete={handleSaleComplete}
           onClose={() => setShowPayment(false)}
         />
+      )}
+
+      {showHistory && (
+        <div style={styles.historyOverlay} onClick={() => setShowHistory(false)}>
+          <div style={styles.historyPanel} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.historyHeader}>
+              <h2 style={styles.historyTitle}>Historial de ventas</h2>
+              <button style={styles.historyClose} onClick={() => setShowHistory(false)}>✕</button>
+            </div>
+            <div style={styles.historyBody}>
+              <SalesHistory />
+            </div>
+          </div>
+        </div>
       )}
 
       {completedSale && (
@@ -273,4 +292,54 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottomColor: "#2563eb",
     fontWeight: 600,
   },
+  historyBtn: {
+    flex: "0 0 auto",
+    padding: "8px 14px",
+    border: "none",
+    borderBottom: "2px solid transparent",
+    background: "transparent",
+    color: "#64748b",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 500,
+    whiteSpace: "nowrap",
+  },
+  historyOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15, 23, 42, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+    padding: 12,
+  },
+  historyPanel: {
+    background: "#f8fafc",
+    borderRadius: 12,
+    width: "100%",
+    maxWidth: 640,
+    maxHeight: "90vh",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  historyHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 16px",
+    borderBottom: "1px solid #e2e8f0",
+    background: "#fff",
+  },
+  historyTitle: { margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a" },
+  historyClose: {
+    background: "none",
+    border: "none",
+    fontSize: 16,
+    color: "#64748b",
+    cursor: "pointer",
+    padding: 4,
+  },
+  historyBody: { padding: 16, overflowY: "auto" },
 };
