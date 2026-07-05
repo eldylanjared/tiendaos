@@ -279,6 +279,28 @@ export function deleteVolumePromo(productId: string, promoId: string) {
   return request(`/products/${productId}/promos/${promoId}`, { method: "DELETE" });
 }
 
+// Store info
+export interface StoreInfo {
+  name: string;
+  address: string;
+  rfc: string;
+}
+
+const STORE_INFO_KEY = "tiendaos_store_info";
+
+/** Fetch store name/address/RFC; falls back to the last cached value offline. */
+export async function getStoreInfo(): Promise<StoreInfo> {
+  try {
+    const info = await request<StoreInfo>("/store/info");
+    localStorage.setItem(STORE_INFO_KEY, JSON.stringify(info));
+    return info;
+  } catch {
+    const cached = localStorage.getItem(STORE_INFO_KEY);
+    if (cached) return JSON.parse(cached) as StoreInfo;
+    return { name: "", address: "", rfc: "" };
+  }
+}
+
 // Sales
 export async function createSale(
   items: SaleItemCreate[],

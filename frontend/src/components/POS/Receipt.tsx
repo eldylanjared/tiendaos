@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getStoreInfo, type StoreInfo } from "@/services/api";
 import type { Sale } from "@/types";
 
 interface Props {
@@ -44,7 +45,12 @@ async function tryBackendPrint(sale: Sale, storeName: string): Promise<boolean> 
 
 export default function Receipt({ sale, storeName, onClose, closeLabel = "Nueva venta" }: Props) {
   const [printing, setPrinting] = useState(false);
+  const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
   const date = new Date(sale.created_at);
+
+  useEffect(() => {
+    getStoreInfo().then(setStoreInfo);
+  }, []);
 
   async function handlePrint() {
     setPrinting(true);
@@ -57,15 +63,28 @@ export default function Receipt({ sale, storeName, onClose, closeLabel = "Nueva 
 
   return (
     <>
-      {/* Print-only styles: hide everything except the receipt */}
+      {/* Print-only styles: hide everything except the receipt.
+          Uses visibility (not display) — children CAN override a hidden
+          ancestor's visibility, but never its display:none. */}
       <style>{`
         @media print {
           @page { size: 80mm auto; margin: 2mm 3mm; }
-          body > * { display: none !important; }
-          #receipt-printable { display: block !important; }
-          #receipt-printable * { visibility: visible !important; }
-          /* Undo the on-screen scroll cap so long receipts print in full */
-          #receipt-printable { overflow: visible !important; max-height: none !important; }
+          body * { visibility: hidden !important; }
+          #receipt-printable, #receipt-printable * { visibility: visible !important; }
+          #receipt-printable {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            overflow: visible !important;
+            max-height: none !important;
+          }
+          /* Thermal paper: force pure black and bold so the print is legible */
+          #receipt-printable, #receipt-printable * {
+            color: #000 !important;
+            font-weight: 700 !important;
+          }
+          #receipt-printable [data-divider] { border-top-color: #000 !important; }
         }
       `}</style>
 
@@ -73,11 +92,13 @@ export default function Receipt({ sale, storeName, onClose, closeLabel = "Nueva 
         <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
           <div id="receipt-printable" style={styles.receipt}>
             <h3 style={styles.storeName}>{storeName}</h3>
+            {storeInfo?.address && <p style={styles.storeMeta}>{storeInfo.address}</p>}
+            {storeInfo?.rfc && <p style={styles.storeMeta}>RFC: {storeInfo.rfc}</p>}
             <p style={styles.date}>
               {date.toLocaleDateString("es-MX")}{" "}
               {date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
             </p>
-            <div style={styles.divider} />
+            <div data-divider style={styles.divider} />
 
             {sale.items.map((item) => (
               <div key={item.id} style={styles.lineItem}>
@@ -91,7 +112,7 @@ export default function Receipt({ sale, storeName, onClose, closeLabel = "Nueva 
               </div>
             ))}
 
-            <div style={styles.divider} />
+            <div data-divider style={styles.divider} />
 
             <div style={styles.sumRow}>
               <span>Subtotal</span><span>${sale.subtotal.toFixed(2)}</span>
@@ -103,7 +124,7 @@ export default function Receipt({ sale, storeName, onClose, closeLabel = "Nueva 
               <span>TOTAL</span><span>${sale.total.toFixed(2)}</span>
             </div>
 
-            <div style={styles.divider} />
+            <div data-divider style={styles.divider} />
 
             <div style={styles.sumRow}>
               <span>Pago ({sale.payment_method})</span>
@@ -115,7 +136,7 @@ export default function Receipt({ sale, storeName, onClose, closeLabel = "Nueva 
               </div>
             )}
 
-            <div style={styles.divider} />
+            <div data-divider style={styles.divider} />
             <p style={styles.thanks}>Gracias por su compra</p>
             <p style={styles.ticketId}>Ticket: {sale.id.slice(0, 8).toUpperCase()}</p>
           </div>
@@ -156,10 +177,13 @@ const styles: Record<string, React.CSSProperties> = {
   receipt: {
     fontFamily: "'Courier New', monospace",
     fontSize: 13,
+    fontWeight: 600,
+    color: "#000",
     overflowY: "auto",
     minHeight: 0,
   },
   storeName: { textAlign: "center", margin: "0 0 4px", fontSize: 16 },
+  storeMeta: { textAlign: "center", margin: "0 0 2px", fontSize: 10, color: "#334155" },
   date: { textAlign: "center", color: "#64748b", margin: "0 0 8px", fontSize: 12 },
   divider: { borderTop: "1px dashed #cbd5e1", margin: "8px 0" },
   lineItem: { marginBottom: 4 },
