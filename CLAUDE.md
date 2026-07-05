@@ -110,7 +110,11 @@ POS UI (React :3000) → FastAPI (:8000) → SQLite (local store)
 - **Offline resilience**: SQLite WAL mode + foreign keys enforced via pragmas
 
 ## Current State (as of 2026-07-05)
-- [x] POS Terminal: 50/50 layout, favorites, barcode scanning, bundle volume pricing
+- [x] POS Terminal: 50/50 layout (cart LEFT), favorites, barcode scanning, bundle volume pricing, promo qty picker (6+ button), compact one-line cart with scan auto-scroll
+- [x] POS sales history: 🕒 Ventas modal (reuses Admin SalesHistory) with per-row Repetir / print receipt / Anular
+- [x] Receipts: browser print fixed (was blank), bold black output, store name/address/RFC from /api/store/info (STORE_NAME etc. in .env — never hardcode)
+- [x] Sale timestamps: stored UTC, serialized with Z, day boundaries use TIMEZONE setting (America/Monterrey)
+- [x] Sistema update button: cross-platform (Windows pip/npm paths, restart via process exit + start.bat loop)
 - [x] Price checker: fully responsive kiosk mode (`/precios`, no login required)
 - [x] Admin product table: sortable, toggleable columns, pagination
 - [x] Business finance (Finanzas): expenses, income, nomina, receipt OCR
