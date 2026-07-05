@@ -128,7 +128,8 @@ POS UI (React :3000) → FastAPI (:8000) → SQLite (local store)
 2. **[HIGH]** Build sales dashboard: today's sales, avg ticket, sales by hour, top products
 3. **[MEDIUM]** Reports: daily/weekly/monthly sales, product profitability, category performance
 4. **[MEDIUM]** Inventory alerts: below-minimum stock, reorder suggestions, stock value total
-5. **[LOW]** Separate subdomains: pos.dylanlopez.com, precios.dylanlopez.com, admin.dylanlopez.com
+5. **[MEDIUM — sync gap]** Cloud→store pull only covers products+categories. Extra barcodes (ProductBarcode), volume promos (VolumePromo), and employees/users never reach local stores — a promo or barcode added on dylanlopez.com won't work at the store. Fix in `sync.py pull_products` + VPS `/sync/products` endpoint.
+6. **[LOW]** Separate subdomains: pos.dylanlopez.com, precios.dylanlopez.com, admin.dylanlopez.com
 
 ## Feature Checklist — VERIFY BEFORE EDITING
 
