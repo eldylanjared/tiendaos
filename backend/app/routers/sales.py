@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
@@ -14,6 +15,19 @@ from app.services.auth import get_current_user, require_role, require_sync_key
 
 settings = get_settings()
 router = APIRouter(prefix="/api/sales", tags=["sales"])
+
+
+def local_day_utc_range(date_str: str | None) -> tuple[str, datetime, datetime]:
+    """Resolve a YYYY-MM-DD store-local date (default: today) to naive-UTC
+    query bounds matching how Sale.created_at is stored."""
+    tz = ZoneInfo(settings.timezone)
+    if date_str:
+        day = datetime.strptime(date_str, "%Y-%m-%d").date()
+    else:
+        day = datetime.now(tz).date()
+    start_local = datetime(day.year, day.month, day.day, tzinfo=tz)
+    start_utc = start_local.astimezone(timezone.utc).replace(tzinfo=None)
+    return day.isoformat(), start_utc, start_utc + timedelta(days=1)
 
 
 @router.post("", response_model=SaleResponse)
@@ -118,8 +132,8 @@ def list_sales(
 ):
     q = db.query(Sale).filter(Sale.store_id == settings.store_id, Sale.status == status)
     if date:
-        day = datetime.strptime(date, "%Y-%m-%d")
-        q = q.filter(Sale.created_at >= day, Sale.created_at < day + timedelta(days=1))
+        _, start, end = local_day_utc_range(date)
+        q = q.filter(Sale.created_at >= start, Sale.created_at < end)
     return q.order_by(Sale.created_at.desc()).offset(offset).limit(limit).all()
 
 
@@ -161,16 +175,12 @@ def daily_summary(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    if date:
-        day = datetime.strptime(date, "%Y-%m-%d")
-    else:
-        day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    next_day = day + timedelta(days=1)
+    day_str, start, end = local_day_utc_range(date)
 
     sales = (
         db.query(Sale)
         .filter(Sale.store_id == settings.store_id, Sale.status == "completed")
-        .filter(Sale.created_at >= day, Sale.created_at < next_day)
+        .filter(Sale.created_at >= start, Sale.created_at < end)
         .all()
     )
 
@@ -191,7 +201,7 @@ def daily_summary(
     top = sorted(product_totals.values(), key=lambda x: x["quantity_sold"], reverse=True)[:10]
 
     return DailySummary(
-        date=day.strftime("%Y-%m-%d"),
+        date=day_str,
         total_sales=round(total_sales, 2),
         transaction_count=count,
         avg_ticket=avg_ticket,

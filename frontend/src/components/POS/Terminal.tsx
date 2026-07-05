@@ -152,6 +152,26 @@ export default function Terminal({ storeName }: Props) {
     }
   }
 
+  function handleReplicate(sale: Sale) {
+    let added = 0;
+    const missing: string[] = [];
+    for (const item of sale.items) {
+      const product = products.find((p) => p.id === item.product_id);
+      if (!product) {
+        missing.push(item.product_name);
+        continue;
+      }
+      // Packs, Varios and weight items keep their recorded price (custom by
+      // nature); regular items re-price at the current product price.
+      const usesRecordedPrice = item.pack_units > 1 || isVarios(product) || product.sell_by_weight;
+      cart.addProduct(product, item.quantity, item.pack_units, usesRecordedPrice ? item.unit_price : null);
+      added++;
+    }
+    setShowHistory(false);
+    if (added > 0) toast.success(`${added} producto${added > 1 ? "s" : ""} agregado${added > 1 ? "s" : ""} al carrito`);
+    if (missing.length > 0) toast.error(`No disponible: ${missing.join(", ")}`);
+  }
+
   function handleSaleComplete(sale: Sale) {
     setShowPayment(false);
     setCompletedSale(sale);
@@ -225,7 +245,7 @@ export default function Terminal({ storeName }: Props) {
               <button style={styles.historyClose} onClick={() => setShowHistory(false)}>✕</button>
             </div>
             <div style={styles.historyBody}>
-              <SalesHistory />
+              <SalesHistory onReplicate={handleReplicate} />
             </div>
           </div>
         </div>

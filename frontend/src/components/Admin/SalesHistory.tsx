@@ -3,7 +3,12 @@ import { getSales, getDailySummary, voidSale } from "@/services/api";
 import type { Sale, DailySummary } from "@/types";
 import toast from "react-hot-toast";
 
-export default function SalesHistory() {
+interface Props {
+  /** When set (POS modal), each sale gets a "Repetir" button that hands the sale back */
+  onReplicate?: (sale: Sale) => void;
+}
+
+export default function SalesHistory({ onReplicate }: Props) {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [summary, setSummary] = useState<DailySummary | null>(null);
@@ -92,9 +97,14 @@ export default function SalesHistory() {
                 ))}
                 <div style={styles.detailFooter}>
                   <span>Subtotal: ${sale.subtotal.toFixed(2)} | IVA: ${sale.tax.toFixed(2)}</span>
-                  {sale.status === "completed" && (
-                    <button style={styles.voidBtn} onClick={() => handleVoid(sale.id)}>Anular</button>
-                  )}
+                  <div style={styles.detailActions}>
+                    {onReplicate && (
+                      <button style={styles.replicateBtn} onClick={() => onReplicate(sale)}>Repetir</button>
+                    )}
+                    {sale.status === "completed" && (
+                      <button style={styles.voidBtn} onClick={() => handleVoid(sale.id)}>Anular</button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -178,12 +188,23 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: "#64748b",
   },
+  detailActions: { display: "flex", gap: 8 },
   voidBtn: {
     padding: "4px 12px",
     borderRadius: 6,
     border: "1px solid #dc2626",
     background: "#fff",
     color: "#dc2626",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  replicateBtn: {
+    padding: "4px 12px",
+    borderRadius: 6,
+    border: "1px solid #2563eb",
+    background: "#fff",
+    color: "#2563eb",
     cursor: "pointer",
     fontSize: 12,
     fontWeight: 600,
