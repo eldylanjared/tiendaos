@@ -75,6 +75,7 @@ export default function Terminal({ storeName }: Props) {
   const [variosProduct, setVariosProduct] = useState<Product | null>(null);
   const [showAllProducts, setShowAllProducts] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [reprintSale, setReprintSale] = useState<Sale | null>(null);
 
   // Shared products state so starring in "Todos" updates "Favoritos" instantly
   const [products, setProducts] = useState<Product[]>([]);
@@ -253,7 +254,7 @@ export default function Terminal({ storeName }: Props) {
               <button style={styles.historyClose} onClick={() => setShowHistory(false)}>✕</button>
             </div>
             <div style={styles.historyBody}>
-              <SalesHistory onReplicate={handleReplicate} />
+              <SalesHistory onReplicate={handleReplicate} onPrint={setReprintSale} />
             </div>
           </div>
         </div>
@@ -264,6 +265,15 @@ export default function Terminal({ storeName }: Props) {
           sale={completedSale}
           storeName={storeName}
           onClose={handleNewSale}
+        />
+      )}
+
+      {reprintSale && (
+        <Receipt
+          sale={reprintSale}
+          storeName={storeName}
+          onClose={() => setReprintSale(null)}
+          closeLabel="Cerrar"
         />
       )}
 

@@ -6,9 +6,11 @@ import toast from "react-hot-toast";
 interface Props {
   /** When set (POS modal), each sale gets a "Repetir" button that hands the sale back */
   onReplicate?: (sale: Sale) => void;
+  /** When set (POS modal), each sale gets a print button to reprint its receipt */
+  onPrint?: (sale: Sale) => void;
 }
 
-export default function SalesHistory({ onReplicate }: Props) {
+export default function SalesHistory({ onReplicate, onPrint }: Props) {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [summary, setSummary] = useState<DailySummary | null>(null);
@@ -85,6 +87,17 @@ export default function SalesHistory({ onReplicate }: Props) {
                 <span style={styles.saleTotal}>${sale.total.toFixed(2)}</span>
                 <span style={styles.salePayment}>{sale.payment_method}</span>
               </div>
+              <div style={styles.rowActions} onClick={(e) => e.stopPropagation()}>
+                {onReplicate && (
+                  <button style={styles.replicateBtn} onClick={() => onReplicate(sale)}>Repetir</button>
+                )}
+                {onPrint && (
+                  <button style={styles.printRowBtn} onClick={() => onPrint(sale)}>🖨 Recibo</button>
+                )}
+                {sale.status === "completed" && (
+                  <button style={styles.voidBtn} onClick={() => handleVoid(sale.id)}>Anular</button>
+                )}
+              </div>
             </div>
 
             {expanded === sale.id && (
@@ -97,14 +110,6 @@ export default function SalesHistory({ onReplicate }: Props) {
                 ))}
                 <div style={styles.detailFooter}>
                   <span>Subtotal: ${sale.subtotal.toFixed(2)} | IVA: ${sale.tax.toFixed(2)}</span>
-                  <div style={styles.detailActions}>
-                    {onReplicate && (
-                      <button style={styles.replicateBtn} onClick={() => onReplicate(sale)}>Repetir</button>
-                    )}
-                    {sale.status === "completed" && (
-                      <button style={styles.voidBtn} onClick={() => handleVoid(sale.id)}>Anular</button>
-                    )}
-                  </div>
                 </div>
               </div>
             )}
@@ -188,7 +193,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: "#64748b",
   },
-  detailActions: { display: "flex", gap: 8 },
+  rowActions: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const },
+  printRowBtn: {
+    padding: "4px 12px",
+    borderRadius: 6,
+    border: "1px solid #16a34a",
+    background: "#fff",
+    color: "#16a34a",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 600,
+  },
   voidBtn: {
     padding: "4px 12px",
     borderRadius: 6,

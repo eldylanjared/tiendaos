@@ -5,6 +5,8 @@ interface Props {
   sale: Sale;
   storeName: string;
   onClose: () => void;
+  /** Label for the close button — "Nueva venta" after a sale, "Cerrar" on reprint */
+  closeLabel?: string;
 }
 
 async function tryBackendPrint(sale: Sale, storeName: string): Promise<boolean> {
@@ -40,7 +42,7 @@ async function tryBackendPrint(sale: Sale, storeName: string): Promise<boolean> 
   }
 }
 
-export default function Receipt({ sale, storeName, onClose }: Props) {
+export default function Receipt({ sale, storeName, onClose, closeLabel = "Nueva venta" }: Props) {
   const [printing, setPrinting] = useState(false);
   const date = new Date(sale.created_at);
 
@@ -123,7 +125,7 @@ export default function Receipt({ sale, storeName, onClose }: Props) {
               {printing ? "Imprimiendo..." : "Imprimir"}
             </button>
             <button style={styles.doneBtn} onClick={onClose}>
-              Nueva venta
+              {closeLabel}
             </button>
           </div>
         </div>
@@ -171,8 +173,9 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     padding: "10px",
     borderRadius: 8,
-    border: "1px solid #e2e8f0",
-    background: "#fff",
+    border: "none",
+    background: "#16a34a",
+    color: "#fff",
     cursor: "pointer",
     fontSize: 14,
     fontWeight: 600,
@@ -181,9 +184,9 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     padding: "10px",
     borderRadius: 8,
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
+    border: "1px solid #cbd5e1",
+    background: "#fff",
+    color: "#0f172a",
     cursor: "pointer",
     fontSize: 14,
     fontWeight: 600,
