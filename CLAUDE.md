@@ -109,7 +109,7 @@ POS UI (React :3000) → FastAPI (:8000) → SQLite (local store)
 - **Receipts**: thermal printer support via `python-escpos`
 - **Offline resilience**: SQLite WAL mode + foreign keys enforced via pragmas
 
-## Current State (as of 2026-05-20)
+## Current State (as of 2026-07-05)
 - [x] POS Terminal: 50/50 layout, favorites, barcode scanning, bundle volume pricing
 - [x] Price checker: fully responsive kiosk mode (`/precios`, no login required)
 - [x] Admin product table: sortable, toggleable columns, pagination
@@ -117,12 +117,14 @@ POS UI (React :3000) → FastAPI (:8000) → SQLite (local store)
 - [x] Personal finance (Mis Finanzas): per-employee categories, nomina auto-income
 - [x] Full responsive layout for all screen sizes
 - [x] Production live at dylanlopez.com | Staging at staging.dylanlopez.com
-- [ ] Automated backups — not set up yet (risk: DB loss if VPS fails)
+- [x] Local backups on VPS: daily SQLite backup (cron 00:00 → /opt/tiendaos/backups) + full VPS backup (cron 02:00 → /opt/backups), 30-day retention
+- [x] Windows store install: auto-start on logon, auto-restart on crash, no 72h task limit (fix_autostart_windows.ps1 repairs existing installs)
+- [ ] OFFSITE backups — rclone installed on VPS but no B2 bucket/credentials yet (risk: backups die with the VPS)
 - [ ] Dashboard — no daily/hourly sales view exists yet
 - [ ] Inventory alerts — no low-stock notifications yet
 
 ## Next Steps (priority order)
-1. **[HIGH — risk]** Set up automated daily backups to Backblaze B2
+1. **[HIGH — risk]** Finish offsite backups: create Backblaze B2 bucket + app key, configure rclone remote, add upload step to /opt/backups/full-backup.sh
 2. **[HIGH]** Build sales dashboard: today's sales, avg ticket, sales by hour, top products
 3. **[MEDIUM]** Reports: daily/weekly/monthly sales, product profitability, category performance
 4. **[MEDIUM]** Inventory alerts: below-minimum stock, reorder suggestions, stock value total
