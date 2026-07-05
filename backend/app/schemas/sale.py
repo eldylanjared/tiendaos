@@ -1,5 +1,5 @@
-from datetime import datetime
-from pydantic import BaseModel
+from datetime import datetime, timezone
+from pydantic import BaseModel, field_serializer
 from typing import Optional
 
 
@@ -43,6 +43,11 @@ class SaleResponse(BaseModel):
     status: str
     created_at: datetime
     model_config = {"from_attributes": True}
+
+    # created_at is stored as naive UTC; tag it so clients convert to local time
+    @field_serializer("created_at")
+    def _created_at_utc(self, dt: datetime) -> datetime:
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
 class SaleImportItemPayload(BaseModel):

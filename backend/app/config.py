@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     store_name: str = "Tienda Centro"
     store_address: str = ""
     store_rfc: str = ""
+    # Sale timestamps are stored in UTC; this defines what "a day" means for
+    # reports and history (Mexico has no DST since 2022)
+    timezone: str = "America/Monterrey"
 
     # Auth
     secret_key: str = "change-this-to-a-random-secret-key-at-least-32-chars"
