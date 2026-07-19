@@ -64,7 +64,11 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
           p.barcode?.toLowerCase().includes(search.toLowerCase())
         )
       : products;
-    return favoritesOnly ? base.filter((p) => p.is_favorite) : base;
+    if (!favoritesOnly) return base;
+    // "Varios" (cargo generico, precio abierto) siempre fijo al inicio de favoritos
+    return base
+      .filter((p) => p.is_favorite)
+      .sort((a, b) => Number(b.name.trim().toLowerCase() === "varios") - Number(a.name.trim().toLowerCase() === "varios"));
   }, [products, search, externalProducts, favoritesOnly]);
 
   return (
