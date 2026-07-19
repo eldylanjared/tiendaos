@@ -191,7 +191,9 @@ export default function ProductManager() {
     if (!window.confirm(`¿Eliminar ${selectedIds.size} productos? Esta acción no se puede deshacer.`)) return;
     try {
       const res = await bulkDeleteProducts([...selectedIds]);
-      toast.success(`${res.deleted} productos eliminados`);
+      const parts = [`${res.deleted} productos eliminados`];
+      if (res.deactivated > 0) parts.push(`${res.deactivated} desactivados (tienen ventas)`);
+      toast.success(parts.join(", "));
       setSelectedIds(new Set()); loadProducts();
     } catch (err: any) { toast.error(err.message || "Error al eliminar"); }
   }

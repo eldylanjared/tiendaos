@@ -12,3 +12,4 @@ python-escpos==3.1
 python-barcode==0.15.1
 apscheduler==3.10.4
 tzdata
+pytest

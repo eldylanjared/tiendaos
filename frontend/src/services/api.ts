@@ -249,7 +249,7 @@ export function deleteProduct(productId: string) {
 }
 
 export function bulkDeleteProducts(ids: string[]) {
-  return request<{ deleted: number }>(`/products/bulk-delete`, {
+  return request<{ deleted: number; deactivated: number }>(`/products/bulk-delete`, {
     method: "POST",
     body: JSON.stringify({ ids }),
   });
