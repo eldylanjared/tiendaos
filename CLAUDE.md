@@ -123,6 +123,7 @@ POS UI (React :3000) → FastAPI (:8000) → SQLite (local store)
 - [x] Production live at dylanlopez.com | Staging at staging.dylanlopez.com
 - [x] Local backups on VPS: daily SQLite backup (cron 00:00 → /opt/tiendaos/backups) + full VPS backup (cron 02:00 → /opt/backups), 30-day retention
 - [x] Windows store install: auto-start on logon, auto-restart on crash, no 72h task limit (fix_autostart_windows.ps1 repairs existing installs)
+- [x] Ticket aliases (phase 1): "Nombres en Ticket" per product (ProductForm section, `product_ticket_aliases` table, globally unique case-insensitive). Phase 2 planned: photo of supplier ticket → OCR lines → match aliases → add stock + register compra in Finanzas, linked proveedor→producto→compra→finanzas
 - [ ] OFFSITE backups — rclone installed on VPS but no B2 bucket/credentials yet (risk: backups die with the VPS)
 - [ ] Dashboard — no daily/hourly sales view exists yet
 - [ ] Inventory alerts — no low-stock notifications yet
