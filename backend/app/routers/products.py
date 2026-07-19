@@ -4,6 +4,7 @@ import os
 import uuid as _uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse, FileResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -370,8 +371,18 @@ def delete_product(
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    db.delete(product)
-    db.commit()
+    try:
+        db.delete(product)
+        db.commit()
+    except IntegrityError:
+        # sale_items FK: products with sales can't be hard-deleted
+        db.rollback()
+        product.is_active = False
+        db.commit()
+        raise HTTPException(
+            status_code=409,
+            detail="Este producto tiene ventas registradas y no se puede eliminar. Se desactivó en su lugar.",
+        )
     return {"ok": True}
 
 
@@ -382,9 +393,20 @@ def bulk_delete_products(
     _admin: User = Depends(require_role("admin", "manager")),
 ):
     ids: list[str] = data.get("ids", [])
-    deleted = db.query(Product).filter(Product.id.in_(ids)).delete(synchronize_session=False)
-    db.commit()
-    return {"deleted": deleted}
+    deleted = 0
+    deactivated = 0
+    # ORM delete per product so barcodes/promos cascade; sold products get deactivated
+    for product in db.query(Product).filter(Product.id.in_(ids)).all():
+        try:
+            db.delete(product)
+            db.commit()
+            deleted += 1
+        except IntegrityError:
+            db.rollback()
+            product.is_active = False
+            db.commit()
+            deactivated += 1
+    return {"deleted": deleted, "deactivated": deactivated}
 
 
 @router.post("/bulk-patch")

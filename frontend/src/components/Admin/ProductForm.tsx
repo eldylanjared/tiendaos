@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   createProduct,
   updateProduct,
+  deleteProduct,
   addProductBarcode,
   deleteProductBarcode,
   addVolumePromo,
@@ -125,7 +126,8 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   }
 
   async function handleSave() {
-    if (!form.barcode || !form.name || form.price <= 0) {
+    // price 0 permitido: productos de precio abierto como "Varios"
+    if (!form.barcode || !form.name || form.price < 0) {
       toast.error("Barcode, nombre y precio son requeridos");
       return;
     }
@@ -159,6 +161,21 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
       }
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!savedProduct) return;
+    if (!window.confirm(`¿Eliminar "${savedProduct.name}"? Esta acción no se puede deshacer.`)) return;
+    setSaving(true);
+    try {
+      await deleteProduct(savedProduct.id);
+      toast.success("Producto eliminado");
+      onSave();
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar producto");
     } finally {
       setSaving(false);
     }
@@ -400,6 +417,11 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
           <button style={styles.saveBtn} onClick={onSave}>Listo</button>
         ) : (
           <>
+            {isEdit && (
+              <button style={styles.deleteProductBtn} onClick={handleDelete} disabled={saving}>
+                Eliminar producto
+              </button>
+            )}
             <button style={styles.cancelBtn} onClick={onCancel}>Cancelar</button>
             <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
               {saving ? "Guardando..." : "Guardar"}
@@ -563,6 +585,17 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 2,
   },
   actions: { display: "flex", gap: 8, marginTop: 16 },
+  deleteProductBtn: {
+    padding: "10px 20px",
+    borderRadius: 8,
+    border: "1px solid #fca5a5",
+    background: "#fff",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#dc2626",
+    marginRight: "auto",
+  },
   cancelBtn: {
     padding: "10px 20px",
     borderRadius: 8,
