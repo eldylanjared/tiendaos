@@ -44,6 +44,7 @@ class Product(Base):
     supplier: Mapped["Supplier | None"] = relationship("Supplier", back_populates="products")  # type: ignore
     barcodes: Mapped[list["ProductBarcode"]] = relationship("ProductBarcode", back_populates="product", cascade="all, delete-orphan")
     volume_promos: Mapped[list["VolumePromo"]] = relationship("VolumePromo", back_populates="product", cascade="all, delete-orphan")
+    ticket_aliases: Mapped[list["ProductTicketAlias"]] = relationship("ProductTicketAlias", back_populates="product", cascade="all, delete-orphan")
 
 
 class ProductBarcode(Base):
@@ -67,6 +68,21 @@ class VolumePromo(Base):
     promo_price: Mapped[float] = mapped_column(Float, nullable=False)
 
     product: Mapped["Product"] = relationship("Product", back_populates="volume_promos")
+
+
+class ProductTicketAlias(Base):
+    """Name a product appears under on supplier tickets/invoices (many per product).
+    Feeds future receipt-OCR: parsed ticket lines are matched against these aliases."""
+    __tablename__ = "product_ticket_aliases"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    product_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), nullable=False)
+    alias: Mapped[str] = mapped_column(String(200), index=True, nullable=False)
+    supplier_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("suppliers.id"), nullable=True)
+    times_seen: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    product: Mapped["Product"] = relationship("Product", back_populates="ticket_aliases")
 
 
 class StockAdjustment(Base):

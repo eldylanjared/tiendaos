@@ -34,6 +34,20 @@ class ProductBarcodeResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TicketAliasCreate(BaseModel):
+    alias: str
+    supplier_id: str | None = None
+
+
+class TicketAliasResponse(BaseModel):
+    id: str
+    product_id: str
+    alias: str
+    supplier_id: str | None = None
+    times_seen: int
+    model_config = {"from_attributes": True}
+
+
 # --- Volume Promos ---
 
 class VolumePromoCreate(BaseModel):
@@ -113,6 +127,7 @@ class ProductResponse(ProductBase):
     category: CategoryResponse | None = None
     barcodes: list[ProductBarcodeResponse] = []
     volume_promos: list[VolumePromoResponse] = []
+    ticket_aliases: list[TicketAliasResponse] = []
     model_config = {"from_attributes": True}
 
 
