@@ -130,3 +130,32 @@ def test_bulk_delete_mixed(client):
     p2 = db.query(Product).filter_by(id="p2").first()
     assert p2 is not None and p2.is_active is False
     db.close()
+
+
+def test_ticket_alias_add_and_unique(client):
+    c, TestSession = client
+    db = TestSession()
+    _make_product(db, pid="p1", barcode="111")
+    _make_product(db, pid="p2", barcode="222")
+    db.close()
+
+    r = c.post("/api/products/p1/ticket-aliases", json={"alias": "CC600 REF PET"})
+    assert r.status_code == 200, r.text
+    alias_id = r.json()["id"]
+
+    # same alias on another product is rejected (must be unambiguous for OCR)
+    r = c.post("/api/products/p2/ticket-aliases", json={"alias": "cc600 ref pet"})
+    assert r.status_code == 400
+
+    # aliases come back embedded in the product response
+    r = c.get("/api/products/p1")
+    assert r.status_code == 200
+    assert [a["alias"] for a in r.json()["ticket_aliases"]] == ["CC600 REF PET"]
+
+    # delete, and cascade on product delete
+    r = c.delete(f"/api/products/p1/ticket-aliases/{alias_id}")
+    assert r.status_code == 200
+    r = c.post("/api/products/p1/ticket-aliases", json={"alias": "OTRA"})
+    assert r.status_code == 200
+    r = c.delete("/api/products/p1")
+    assert r.status_code == 200, r.text

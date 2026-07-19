@@ -5,6 +5,8 @@ import {
   deleteProduct,
   addProductBarcode,
   deleteProductBarcode,
+  addTicketAlias,
+  deleteTicketAlias,
   addVolumePromo,
   deleteVolumePromo,
   getProduct,
@@ -52,6 +54,8 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
 
   const [barcodes, setBarcodes] = useState(product?.barcodes ?? []);
   const [promos, setPromos] = useState(product?.volume_promos ?? []);
+  const [ticketAliases, setTicketAliases] = useState(product?.ticket_aliases ?? []);
+  const [newAlias, setNewAlias] = useState("");
   const [justCreated, setJustCreated] = useState(false);
 
   const [newBarcode, setNewBarcode] = useState("");
@@ -204,6 +208,29 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
       toast.success("Barcode eliminado");
     } catch (err: any) {
       toast.error(err.message);
+    }
+  }
+
+  async function handleAddTicketAlias() {
+    if (!savedProduct || !newAlias.trim()) return;
+    try {
+      await addTicketAlias(savedProduct.id, newAlias.trim());
+      const updated = await getProduct(savedProduct.id);
+      setTicketAliases(updated.ticket_aliases);
+      setNewAlias("");
+      toast.success("Nombre de ticket agregado");
+    } catch (err: any) {
+      toast.error(err.message || "Error al agregar nombre de ticket");
+    }
+  }
+
+  async function handleDeleteTicketAlias(aliasId: string) {
+    if (!savedProduct) return;
+    try {
+      await deleteTicketAlias(savedProduct.id, aliasId);
+      setTicketAliases(ticketAliases.filter((a) => a.id !== aliasId));
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar");
     }
   }
 
@@ -412,6 +439,30 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         </div>
       )}
 
+      {/* Ticket Aliases Section */}
+      {isEdit && (
+        <div style={styles.section}>
+          <h3 style={styles.sectionTitle}>Nombres en Ticket</h3>
+          <p style={styles.sectionHint}>Como aparece este producto en los tickets de proveedores (para registrar compras por foto en el futuro)</p>
+          {ticketAliases.map((a) => (
+            <div key={a.id} style={styles.subRow}>
+              <span>{a.alias}</span>
+              <button style={styles.deleteBtn} onClick={() => handleDeleteTicketAlias(a.id)}>Eliminar</button>
+            </div>
+          ))}
+          <div style={styles.subForm}>
+            <input
+              style={{ ...styles.smallInput, flex: 1 }}
+              placeholder="Nombre en el ticket (ej. CC600 REF PET)"
+              value={newAlias}
+              onChange={(e) => setNewAlias(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAddTicketAlias(); }}
+            />
+            <button style={styles.addSubBtn} onClick={handleAddTicketAlias}>Agregar</button>
+          </div>
+        </div>
+      )}
+
       <div style={styles.actions}>
         {justCreated ? (
           <button style={styles.saveBtn} onClick={onSave}>Listo</button>
@@ -480,6 +531,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #e2e8f0",
   },
   sectionTitle: { margin: "0 0 10px", fontSize: 14, fontWeight: 600, color: "#0f172a" },
+  sectionHint: { margin: "-6px 0 10px", fontSize: 12, color: "#94a3b8" },
   imageArea: { display: "flex", flexDirection: "column", gap: 8 },
   imagePreviewWrap: { display: "flex", alignItems: "center", gap: 12 },
   imageThumb: { width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0" },

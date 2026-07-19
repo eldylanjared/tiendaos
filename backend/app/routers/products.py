@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.product import Product, ProductBarcode, Category, VolumePromo, StockAdjustment
+from app.models.product import Product, ProductBarcode, Category, VolumePromo, StockAdjustment, ProductTicketAlias
 from app.models.user import User
 from app.schemas.product import (
     ProductCreate,
@@ -24,6 +24,8 @@ from app.schemas.product import (
     StockAdjustmentResponse,
     BarcodeLookupResponse,
     PackInfo,
+    TicketAliasCreate,
+    TicketAliasResponse,
 )
 from app.services.auth import get_current_user, require_role
 
@@ -527,6 +529,60 @@ def delete_barcode(
     if not pack:
         raise HTTPException(status_code=404, detail="Pack barcode not found")
     db.delete(pack)
+    db.commit()
+    return {"ok": True}
+
+
+# --- Ticket Aliases (names as printed on supplier tickets) ---
+
+@router.post("/{product_id}/ticket-aliases", response_model=TicketAliasResponse)
+def add_ticket_alias(
+    product_id: str,
+    data: TicketAliasCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    alias_text = data.alias.strip()
+    if not alias_text:
+        raise HTTPException(status_code=400, detail="Alias vacío")
+
+    # Same alias text can't point at two different products (OCR matching must be unambiguous)
+    existing = db.query(ProductTicketAlias).filter(
+        ProductTicketAlias.alias.ilike(alias_text)
+    ).first()
+    if existing:
+        if existing.product_id == product_id:
+            raise HTTPException(status_code=400, detail="Este producto ya tiene ese nombre de ticket")
+        other = db.query(Product).filter(Product.id == existing.product_id).first()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ese nombre de ticket ya está asignado a: {other.name if other else 'otro producto'}",
+        )
+
+    alias = ProductTicketAlias(product_id=product_id, alias=alias_text, supplier_id=data.supplier_id or None)
+    db.add(alias)
+    db.commit()
+    db.refresh(alias)
+    return alias
+
+
+@router.delete("/{product_id}/ticket-aliases/{alias_id}")
+def delete_ticket_alias(
+    product_id: str,
+    alias_id: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    alias = db.query(ProductTicketAlias).filter(
+        ProductTicketAlias.id == alias_id, ProductTicketAlias.product_id == product_id
+    ).first()
+    if not alias:
+        raise HTTPException(status_code=404, detail="Ticket alias not found")
+    db.delete(alias)
     db.commit()
     return {"ok": True}
 

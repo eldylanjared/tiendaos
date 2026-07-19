@@ -205,6 +205,17 @@ export function deleteProductBarcode(productId: string, barcodeId: string) {
   return request(`/products/${productId}/barcodes/${barcodeId}`, { method: "DELETE" });
 }
 
+export function addTicketAlias(productId: string, alias: string, supplier_id?: string | null) {
+  return request(`/products/${productId}/ticket-aliases`, {
+    method: "POST",
+    body: JSON.stringify({ alias, supplier_id: supplier_id || null }),
+  });
+}
+
+export function deleteTicketAlias(productId: string, aliasId: string) {
+  return request(`/products/${productId}/ticket-aliases/${aliasId}`, { method: "DELETE" });
+}
+
 export async function uploadProductImage(productId: string, file: File): Promise<{ image_url: string }> {
   const token = getToken();
   const form = new FormData();

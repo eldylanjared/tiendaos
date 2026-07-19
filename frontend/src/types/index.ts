@@ -57,6 +57,15 @@ export interface Product {
   category: Category | null;
   barcodes: ProductBarcode[];
   volume_promos: VolumePromo[];
+  ticket_aliases: TicketAlias[];
+}
+
+export interface TicketAlias {
+  id: string;
+  product_id: string;
+  alias: string;
+  supplier_id: string | null;
+  times_seen: number;
 }
 
 export interface PackInfo {
