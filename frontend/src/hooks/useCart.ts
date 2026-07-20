@@ -4,24 +4,27 @@ import type { Product, CartItem, SaleItemCreate, VolumePromo } from "@/types";
 const TAX_RATE = 0;
 
 /**
- * Calculate effective unit price using greedy bundle matching.
- * Promos are sorted by min_units desc (best deals first).
- * promo_price = total bundle price (e.g. 6 for $55 → promo_price=55).
+ * Effective unit price for totalQty units, choosing the CHEAPEST combination of
+ * promo bundles and singles (dynamic programming — greedy largest-tier-first
+ * overcharges, e.g. tiers 6/$105 + 8/$135 + 10/$170 price 16 units as 10+6=$275
+ * instead of 8+8=$270). promo_price = total bundle price.
+ * Mirrors backend app/services/pricing.py (bundle_total) — keep both in sync.
  */
 function calcBundleUnitPrice(totalQty: number, basePrice: number, promos: VolumePromo[]): number {
-  if (!promos.length || totalQty <= 0) return basePrice;
-  const sorted = [...promos].sort((a, b) => b.min_units - a.min_units);
-  let remaining = totalQty;
-  let bundleTotal = 0;
-  for (const promo of sorted) {
-    if (remaining >= promo.min_units) {
-      const bundles = Math.floor(remaining / promo.min_units);
-      bundleTotal += bundles * promo.promo_price;
-      remaining -= bundles * promo.min_units;
+  if (!promos.length || totalQty <= 0 || !Number.isInteger(totalQty)) return basePrice;
+  const cost = new Array<number>(totalQty + 1).fill(Infinity);
+  cost[0] = 0;
+  for (let q = 1; q <= totalQty; q++) {
+    let best = cost[q - 1] + basePrice;
+    for (const p of promos) {
+      if (p.min_units > 0 && p.min_units <= q) {
+        const candidate = cost[q - p.min_units] + p.promo_price;
+        if (candidate < best) best = candidate;
+      }
     }
+    cost[q] = best;
   }
-  bundleTotal += remaining * basePrice;
-  return bundleTotal / totalQty;
+  return cost[totalQty] / totalQty;
 }
 
 export function useCart() {
