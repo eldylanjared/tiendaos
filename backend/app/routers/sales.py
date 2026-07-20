@@ -11,6 +11,7 @@ from app.models.product import Product, VolumePromo
 from app.models.sale import Sale, SaleItem
 from app.models.user import User
 from app.schemas.sale import SaleCreate, SaleResponse, DailySummary, TopProduct, SaleImportPayload
+from app.services.pricing import bundle_total
 from app.services.auth import get_current_user, require_role, require_sync_key
 
 settings = get_settings()
@@ -77,17 +78,8 @@ def create_sale(
                 .order_by(VolumePromo.min_units.desc())
                 .all()
             )
-            if promos:
-                # Greedy bundle matching: apply best deals first
-                remaining = total_qty
-                bundle_total = 0.0
-                for promo in promos:
-                    if remaining >= promo.min_units:
-                        bundles = remaining // promo.min_units
-                        bundle_total += bundles * promo.promo_price  # promo_price = bundle total
-                        remaining -= bundles * promo.min_units
-                bundle_total += remaining * product.price
-                unit_price = bundle_total / total_qty
+            if promos and total_qty > 0:
+                unit_price = bundle_total(total_qty, product.price, promos) / total_qty
 
         discount = item_data.discount_percent / 100.0
         line_total = round(unit_price * item_data.quantity * (1 - discount), 2)
