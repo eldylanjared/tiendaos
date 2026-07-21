@@ -18,10 +18,21 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [promoProduct, setPromoProduct] = useState<Product | null>(null);
+  const [openGroup, setOpenGroup] = useState<Category | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const products = externalProducts ?? internalProducts;
   const setProducts = onProductsChange ?? setInternalProducts;
+
+  // Categories flagged as favorite groups render as tiles at the top of Favoritos.
+  const groupCategories = useMemo(
+    () => (favoritesOnly ? categories.filter((c) => c.favorite_group) : []),
+    [favoritesOnly, categories]
+  );
+  const groupProducts = useMemo(
+    () => (openGroup ? products.filter((p) => p.category_id === openGroup.id && p.is_active !== false) : []),
+    [openGroup, products]
+  );
 
   useEffect(() => {
     getCategories().then(setCategories).catch(() => {});
@@ -92,11 +103,24 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
         {loading && displayProducts.length === 0 && (
           <p style={S.msg}>Cargando...</p>
         )}
-        {!loading && displayProducts.length === 0 && (
+        {!loading && displayProducts.length === 0 && groupCategories.length === 0 && (
           <p style={S.msg}>
             {favoritesOnly ? "No hay favoritos — usa la estrella en 'Todos' para agregar" : "No se encontraron productos"}
           </p>
         )}
+
+        {/* Favorite-group tiles (e.g. Bebidas) — tap to open the category's products */}
+        {!search && groupCategories.map((g) => (
+          <div key={`group-${g.id}`} style={{ ...S.row, ...S.groupRow }} onClick={() => setOpenGroup(g)}>
+            <span style={{ ...S.groupDot, backgroundColor: g.color || "#7c3aed" }} />
+            <div style={S.nameCol}>
+              <span style={S.name}>{g.name}</span>
+              <span style={S.groupHint}>Grupo · toca para ver opciones</span>
+            </div>
+            <span style={S.groupChevron}>{"▸"}</span>
+          </div>
+        ))}
+
         {displayProducts.map((p) => {
           const cat = categories.find((c) => c.id === p.category_id);
           return (
@@ -184,11 +208,62 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
           </div>
         </div>
       )}
+
+      {/* Favorite-group picker (e.g. Bebidas -> its products as squares) */}
+      {openGroup && (
+        <div style={S.promoOverlay} onClick={() => setOpenGroup(null)}>
+          <div style={S.groupPanel} onClick={(e) => e.stopPropagation()}>
+            <h3 style={S.promoTitle}>{openGroup.name}</h3>
+            {groupProducts.length === 0 ? (
+              <p style={S.msg}>No hay productos en esta categoría.</p>
+            ) : (
+              <div style={S.groupGrid}>
+                {groupProducts.map((p) => (
+                  <button
+                    key={p.id}
+                    style={S.groupSquare}
+                    onClick={() => { onSelect(p); setOpenGroup(null); }}
+                  >
+                    <span style={S.groupSqName}>{p.name}</span>
+                    <span style={S.groupSqPrice}>${p.price.toFixed(2)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button style={S.promoCancel} onClick={() => setOpenGroup(null)}>Cerrar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 const S: Record<string, React.CSSProperties> = {
+  groupRow: {
+    background: "#faf5ff",
+    border: "1px solid #e9d5ff",
+    cursor: "pointer",
+  },
+  groupDot: {
+    width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
+  },
+  groupHint: { fontSize: 11, color: "#a855f7", fontWeight: 600 },
+  groupChevron: { color: "#a855f7", fontSize: 18, fontWeight: 700, flexShrink: 0 },
+  groupPanel: {
+    background: "#fff", borderRadius: 16, padding: 20, width: "min(560px, 92vw)",
+    maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+  },
+  groupGrid: {
+    display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+    gap: 10, margin: "12px 0",
+  },
+  groupSquare: {
+    display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8,
+    minHeight: 84, padding: 12, borderRadius: 12, border: "1px solid #e2e8f0",
+    background: "#f8fafc", cursor: "pointer", textAlign: "left",
+  },
+  groupSqName: { fontSize: 14, fontWeight: 600, color: "#0f172a", lineHeight: 1.2 },
+  groupSqPrice: { fontSize: 16, fontWeight: 700, color: "#16a34a" },
   promoBtn: {
     flexShrink: 0,
     padding: "6px 10px",

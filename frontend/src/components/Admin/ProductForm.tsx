@@ -7,12 +7,15 @@ import {
   deleteProductBarcode,
   addTicketAlias,
   deleteTicketAlias,
+  addComponent,
+  deleteComponent,
   addVolumePromo,
   deleteVolumePromo,
   getProduct,
   getCategories,
   uploadProductImage,
   getSuppliers,
+  searchProducts,
 } from "@/services/api";
 import type { Product, Category, Supplier } from "@/types";
 import toast from "react-hot-toast";
@@ -56,6 +59,11 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   const [promos, setPromos] = useState(product?.volume_promos ?? []);
   const [ticketAliases, setTicketAliases] = useState(product?.ticket_aliases ?? []);
   const [newAlias, setNewAlias] = useState("");
+  const [components, setComponents] = useState(product?.components ?? []);
+  const [compSearch, setCompSearch] = useState("");
+  const [compResults, setCompResults] = useState<Product[]>([]);
+  const [compQty, setCompQty] = useState<Record<string, number>>({});
+  const compDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [justCreated, setJustCreated] = useState(false);
 
   const [newBarcode, setNewBarcode] = useState("");
@@ -229,6 +237,41 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
     try {
       await deleteTicketAlias(savedProduct.id, aliasId);
       setTicketAliases(ticketAliases.filter((a) => a.id !== aliasId));
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar");
+    }
+  }
+
+  function handleCompSearch(val: string) {
+    setCompSearch(val);
+    clearTimeout(compDebounce.current);
+    if (!val.trim()) { setCompResults([]); return; }
+    compDebounce.current = setTimeout(() => {
+      searchProducts(val, 8)
+        .then((list) => setCompResults(list.filter((p) => p.id !== savedProduct?.id)))
+        .catch(() => setCompResults([]));
+    }, 250);
+  }
+
+  async function handleAddComponent(componentId: string) {
+    if (!savedProduct) return;
+    try {
+      await addComponent(savedProduct.id, componentId, compQty[componentId] || 1);
+      const updated = await getProduct(savedProduct.id);
+      setComponents(updated.components);
+      setCompSearch("");
+      setCompResults([]);
+      toast.success("Componente agregado a la receta");
+    } catch (err: any) {
+      toast.error(err.message || "Error al agregar componente");
+    }
+  }
+
+  async function handleDeleteComponent(rowId: string) {
+    if (!savedProduct) return;
+    try {
+      await deleteComponent(savedProduct.id, rowId);
+      setComponents(components.filter((c) => c.id !== rowId));
     } catch (err: any) {
       toast.error(err.message || "Error al eliminar");
     }
@@ -463,6 +506,51 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         </div>
       )}
 
+      {/* Recipe / Components Section */}
+      {isEdit && (
+        <div style={styles.section}>
+          <h3 style={styles.sectionTitle}>Receta (componentes)</h3>
+          <p style={styles.sectionHint}>
+            Si este producto se prepara con otros (ej. New Mix = vaso + Topo Chico + cerveza), agrégalos aquí.
+            Al venderlo se descuenta el inventario de cada componente, no de este producto. El precio de venta es el que pusiste arriba.
+          </p>
+          {components.map((comp) => (
+            <div key={comp.id} style={styles.subRow}>
+              <span>{comp.quantity} × {comp.component_name} <span style={{ color: "#94a3b8" }}>(stock: {comp.component_stock})</span></span>
+              <button style={styles.deleteBtn} onClick={() => handleDeleteComponent(comp.id)}>Quitar</button>
+            </div>
+          ))}
+          <div style={{ position: "relative" }}>
+            <input
+              style={{ ...styles.smallInput, width: "100%", boxSizing: "border-box" }}
+              placeholder="Buscar producto para agregar como componente..."
+              value={compSearch}
+              onChange={(e) => handleCompSearch(e.target.value)}
+            />
+            {compResults.length > 0 && (
+              <div style={styles.compDropdown}>
+                {compResults.map((p) => (
+                  <div key={p.id} style={styles.compResult}>
+                    <span style={{ flex: 1 }}>{p.name}</span>
+                    <input
+                      style={{ ...styles.smallInput, width: 56 }}
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={compQty[p.id] ?? 1}
+                      onChange={(e) => setCompQty((q) => ({ ...q, [p.id]: parseFloat(e.target.value) || 1 }))}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Cantidad"
+                    />
+                    <button style={styles.addSubBtn} onClick={() => handleAddComponent(p.id)}>Agregar</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={styles.actions}>
         {justCreated ? (
           <button style={styles.saveBtn} onClick={onSave}>Listo</button>
@@ -532,6 +620,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sectionTitle: { margin: "0 0 10px", fontSize: 14, fontWeight: 600, color: "#0f172a" },
   sectionHint: { margin: "-6px 0 10px", fontSize: 12, color: "#94a3b8" },
+  compDropdown: {
+    position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
+    background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
+    boxShadow: "0 8px 24px rgba(0,0,0,0.12)", marginTop: 4, maxHeight: 260, overflowY: "auto",
+  },
+  compResult: {
+    display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+    borderBottom: "1px solid #f1f5f9",
+  },
   imageArea: { display: "flex", flexDirection: "column", gap: 8 },
   imagePreviewWrap: { display: "flex", alignItems: "center", gap: 12 },
   imageThumb: { width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0" },
