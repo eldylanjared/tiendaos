@@ -6,6 +6,7 @@ class CategoryBase(BaseModel):
     name: str
     color: str = "#3B82F6"
     parent_id: str | None = None
+    favorite_group: bool = False
 
 
 class CategoryCreate(CategoryBase):
@@ -31,6 +32,22 @@ class ProductBarcodeResponse(BaseModel):
     barcode: str
     units: int
     pack_price: float
+    model_config = {"from_attributes": True}
+
+
+class ComponentCreate(BaseModel):
+    component_id: str
+    quantity: float = 1
+
+
+class ComponentResponse(BaseModel):
+    id: str
+    parent_id: str
+    component_id: str
+    quantity: float
+    component_name: str = ""
+    component_price: float = 0
+    component_stock: int = 0
     model_config = {"from_attributes": True}
 
 
@@ -128,6 +145,7 @@ class ProductResponse(ProductBase):
     barcodes: list[ProductBarcodeResponse] = []
     volume_promos: list[VolumePromoResponse] = []
     ticket_aliases: list[TicketAliasResponse] = []
+    components: list[ComponentResponse] = []
     model_config = {"from_attributes": True}
 
 

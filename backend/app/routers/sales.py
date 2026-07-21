@@ -96,8 +96,14 @@ def create_sale(
         sale.items.append(sale_item)
         subtotal += line_total
 
-        # Decrement stock
-        if not product.sell_by_weight:
+        # Decrement stock. Recipe products (made-to-order) consume their components'
+        # stock instead of their own; simple products decrement themselves.
+        if product.components:
+            units_sold = item_data.quantity * item_data.pack_units
+            for comp in product.components:
+                if not comp.component.sell_by_weight:
+                    comp.component.stock -= int(comp.quantity * units_sold)
+        elif not product.sell_by_weight:
             product.stock -= stock_decrement
 
     sale.subtotal = round(subtotal, 2)
@@ -149,10 +155,17 @@ def void_sale(
     if sale.status == "voided":
         raise HTTPException(status_code=400, detail="Sale already voided")
 
-    # Restore stock
+    # Restore stock — mirror the sale-time logic: recipes restore components, not self.
     for item in sale.items:
         product = db.query(Product).filter(Product.id == item.product_id).first()
-        if product and not product.sell_by_weight:
+        if not product:
+            continue
+        if product.components:
+            units = item.quantity * item.pack_units
+            for comp in product.components:
+                if not comp.component.sell_by_weight:
+                    comp.component.stock += int(comp.quantity * units)
+        elif not product.sell_by_weight:
             product.stock += int(item.quantity * item.pack_units)
 
     sale.status = "voided"
