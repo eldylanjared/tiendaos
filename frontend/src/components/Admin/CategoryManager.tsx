@@ -4,6 +4,7 @@ interface Category {
   id: string;
   name: string;
   color: string;
+  favorite_group: boolean;
 }
 
 const PRESET_COLORS = [
@@ -22,7 +23,7 @@ export default function CategoryManager() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Category | null>(null);
-  const [form, setForm] = useState({ name: "", color: PRESET_COLORS[0] });
+  const [form, setForm] = useState({ name: "", color: PRESET_COLORS[0], favorite_group: false });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -40,19 +41,19 @@ export default function CategoryManager() {
 
   function startCreate() {
     setEditing(null);
-    setForm({ name: "", color: PRESET_COLORS[0] });
+    setForm({ name: "", color: PRESET_COLORS[0], favorite_group: false });
     setError("");
   }
 
   function startEdit(cat: Category) {
     setEditing(cat);
-    setForm({ name: cat.name, color: cat.color });
+    setForm({ name: cat.name, color: cat.color, favorite_group: cat.favorite_group });
     setError("");
   }
 
   function cancelForm() {
     setEditing(null);
-    setForm({ name: "", color: PRESET_COLORS[0] });
+    setForm({ name: "", color: PRESET_COLORS[0], favorite_group: false });
     setError("");
   }
 
@@ -66,7 +67,7 @@ export default function CategoryManager() {
       const r = await fetch(url, {
         method,
         headers: authHeaders(),
-        body: JSON.stringify({ name: form.name.trim(), color: form.color }),
+        body: JSON.stringify({ name: form.name.trim(), color: form.color, favorite_group: form.favorite_group }),
       });
       if (!r.ok) { setError("Error al guardar"); return; }
       await load();
@@ -136,6 +137,14 @@ export default function CategoryManager() {
             </div>
           </div>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 14, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={form.favorite_group}
+            onChange={e => setForm(f => ({ ...f, favorite_group: e.target.checked }))}
+          />
+          Mostrar como grupo en Favoritos (un botón que abre los productos de esta categoría)
+        </label>
         {error && <div style={{ color: "#ef4444", fontSize: 13, marginTop: 8 }}>{error}</div>}
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <button onClick={save} disabled={saving} style={btnStyle("#2563eb")}>
@@ -162,6 +171,11 @@ export default function CategoryManager() {
                 background: cat.color, flexShrink: 0,
               }} />
               <span style={{ flex: 1, fontWeight: 500, fontSize: 14 }}>{cat.name}</span>
+              {cat.favorite_group && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#7c3aed", background: "#f3e8ff", padding: "2px 8px", borderRadius: 999 }}>
+                  ★ Grupo
+                </span>
+              )}
               <button onClick={() => startEdit(cat)} style={iconBtn}>Editar</button>
               <button onClick={() => remove(cat)} style={{ ...iconBtn, color: "#ef4444" }}>Eliminar</button>
             </div>

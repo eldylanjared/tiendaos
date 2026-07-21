@@ -20,6 +20,17 @@ export interface Category {
   name: string;
   color: string;
   parent_id: string | null;
+  favorite_group: boolean;
+}
+
+export interface ProductComponent {
+  id: string;
+  parent_id: string;
+  component_id: string;
+  quantity: number;
+  component_name: string;
+  component_price: number;
+  component_stock: number;
 }
 
 export interface ProductBarcode {
@@ -58,6 +69,7 @@ export interface Product {
   barcodes: ProductBarcode[];
   volume_promos: VolumePromo[];
   ticket_aliases: TicketAlias[];
+  components: ProductComponent[];
 }
 
 export interface TicketAlias {

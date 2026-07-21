@@ -216,6 +216,17 @@ export function deleteTicketAlias(productId: string, aliasId: string) {
   return request(`/products/${productId}/ticket-aliases/${aliasId}`, { method: "DELETE" });
 }
 
+export function addComponent(productId: string, component_id: string, quantity: number) {
+  return request(`/products/${productId}/components`, {
+    method: "POST",
+    body: JSON.stringify({ component_id, quantity }),
+  });
+}
+
+export function deleteComponent(productId: string, rowId: string) {
+  return request(`/products/${productId}/components/${rowId}`, { method: "DELETE" });
+}
+
 export async function uploadProductImage(productId: string, file: File): Promise<{ image_url: string }> {
   const token = getToken();
   const form = new FormData();
