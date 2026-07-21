@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.product import Product, ProductBarcode, Category, VolumePromo, StockAdjustment, ProductTicketAlias
+from app.models.product import Product, ProductBarcode, Category, VolumePromo, StockAdjustment, ProductTicketAlias, ProductComponent
 from app.models.user import User
 from app.schemas.product import (
     ProductCreate,
@@ -26,6 +26,8 @@ from app.schemas.product import (
     PackInfo,
     TicketAliasCreate,
     TicketAliasResponse,
+    ComponentCreate,
+    ComponentResponse,
 )
 from app.services.auth import get_current_user, require_role
 
@@ -583,6 +585,60 @@ def delete_ticket_alias(
     if not alias:
         raise HTTPException(status_code=404, detail="Ticket alias not found")
     db.delete(alias)
+    db.commit()
+    return {"ok": True}
+
+
+# --- Recipe Components (made-to-order products) ---
+
+@router.post("/{product_id}/components", response_model=ComponentResponse)
+def add_component(
+    product_id: str,
+    data: ComponentCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    if data.component_id == product_id:
+        raise HTTPException(status_code=400, detail="Un producto no puede ser su propio componente")
+    component = db.query(Product).filter(Product.id == data.component_id).first()
+    if not component:
+        raise HTTPException(status_code=404, detail="Componente no encontrado")
+    # Prevent nested recipes: a component that is itself a recipe would need recursive
+    # stock deduction; keep it one level deep for now.
+    if component.components:
+        raise HTTPException(status_code=400, detail="Un componente no puede ser a su vez una receta")
+    if data.quantity <= 0:
+        raise HTTPException(status_code=400, detail="Cantidad debe ser mayor a 0")
+    existing = db.query(ProductComponent).filter(
+        ProductComponent.parent_id == product_id,
+        ProductComponent.component_id == data.component_id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Ese componente ya está en la receta")
+
+    comp = ProductComponent(parent_id=product_id, component_id=data.component_id, quantity=data.quantity)
+    db.add(comp)
+    db.commit()
+    db.refresh(comp)
+    return comp
+
+
+@router.delete("/{product_id}/components/{component_row_id}")
+def delete_component(
+    product_id: str,
+    component_row_id: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("admin", "manager")),
+):
+    comp = db.query(ProductComponent).filter(
+        ProductComponent.id == component_row_id, ProductComponent.parent_id == product_id
+    ).first()
+    if not comp:
+        raise HTTPException(status_code=404, detail="Componente no encontrado")
+    db.delete(comp)
     db.commit()
     return {"ok": True}
 

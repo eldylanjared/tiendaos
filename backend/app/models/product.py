@@ -14,6 +14,9 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     color: Mapped[str] = mapped_column(String(7), default="#3B82F6")
     parent_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("categories.id"), nullable=True)
+    # When true, this category shows as a single tile in POS Favoritos that opens
+    # a picker of its products (e.g. "Bebidas" -> agua mineral, sal y limon, new mix).
+    favorite_group: Mapped[bool] = mapped_column(Boolean, default=False)
 
     parent: Mapped["Category | None"] = relationship("Category", remote_side="Category.id")
     products: Mapped[list["Product"]] = relationship("Product", back_populates="category")
@@ -45,6 +48,14 @@ class Product(Base):
     barcodes: Mapped[list["ProductBarcode"]] = relationship("ProductBarcode", back_populates="product", cascade="all, delete-orphan")
     volume_promos: Mapped[list["VolumePromo"]] = relationship("VolumePromo", back_populates="product", cascade="all, delete-orphan")
     ticket_aliases: Mapped[list["ProductTicketAlias"]] = relationship("ProductTicketAlias", back_populates="product", cascade="all, delete-orphan")
+    # Recipe: components this product is made of (made-to-order). Selling it deducts
+    # each component's stock instead of this product's own stock.
+    components: Mapped[list["ProductComponent"]] = relationship(
+        "ProductComponent",
+        foreign_keys="ProductComponent.parent_id",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
 
 
 class ProductBarcode(Base):
@@ -83,6 +94,33 @@ class ProductTicketAlias(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     product: Mapped["Product"] = relationship("Product", back_populates="ticket_aliases")
+
+
+class ProductComponent(Base):
+    """One ingredient of a recipe product. parent_id is the sellable drink,
+    component_id is the product consumed from inventory when it sells."""
+    __tablename__ = "product_components"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    parent_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), nullable=False)
+    component_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), nullable=False)
+    quantity: Mapped[float] = mapped_column(Float, default=1)
+
+    parent: Mapped["Product"] = relationship("Product", foreign_keys=[parent_id], back_populates="components")
+    component: Mapped["Product"] = relationship("Product", foreign_keys=[component_id])
+
+    # Convenience fields for API serialization (read from the related component product)
+    @property
+    def component_name(self) -> str:
+        return self.component.name if self.component else ""
+
+    @property
+    def component_price(self) -> float:
+        return self.component.price if self.component else 0
+
+    @property
+    def component_stock(self) -> int:
+        return self.component.stock if self.component else 0
 
 
 class StockAdjustment(Base):
