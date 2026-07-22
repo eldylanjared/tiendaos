@@ -198,6 +198,7 @@ export default function ProductManager() {
     } catch (err: any) { toast.error(err.message || "Error al eliminar"); }
   }
   async function handleBulkDeactivate(active: boolean) {
+    if (!window.confirm(`¿${active ? "Activar" : "Desactivar"} ${selectedIds.size} producto(s)?`)) return;
     try {
       const res = await bulkPatchProducts([...selectedIds], { is_active: active });
       toast.success(`${res.updated} productos ${active ? "activados" : "desactivados"}`);
