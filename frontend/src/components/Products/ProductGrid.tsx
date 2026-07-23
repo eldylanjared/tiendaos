@@ -19,6 +19,7 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
   const [loading, setLoading] = useState(false);
   const [promoProduct, setPromoProduct] = useState<Product | null>(null);
   const [openGroup, setOpenGroup] = useState<Category | null>(null);
+  const [recipeOpen, setRecipeOpen] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const products = externalProducts ?? internalProducts;
@@ -211,26 +212,47 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
 
       {/* Favorite-group picker (e.g. Bebidas -> its products as squares) */}
       {openGroup && (
-        <div style={S.promoOverlay} onClick={() => setOpenGroup(null)}>
+        <div style={S.promoOverlay} onClick={() => { setOpenGroup(null); setRecipeOpen(null); }}>
           <div style={S.groupPanel} onClick={(e) => e.stopPropagation()}>
             <h3 style={S.promoTitle}>{openGroup.name}</h3>
             {groupProducts.length === 0 ? (
               <p style={S.msg}>No hay productos en esta categoría.</p>
             ) : (
               <div style={S.groupGrid}>
-                {groupProducts.map((p) => (
-                  <button
-                    key={p.id}
-                    style={S.groupSquare}
-                    onClick={() => { onSelect(p); setOpenGroup(null); }}
-                  >
-                    <span style={S.groupSqName}>{p.name}</span>
-                    <span style={S.groupSqPrice}>${p.price.toFixed(2)}</span>
-                  </button>
-                ))}
+                {groupProducts.map((p) => {
+                  const hasRecipe = (p.components?.length ?? 0) > 0;
+                  const showRecipe = recipeOpen === p.id;
+                  return (
+                    <div
+                      key={p.id}
+                      style={S.groupSquare}
+                      onClick={() => { onSelect(p); setOpenGroup(null); setRecipeOpen(null); }}
+                    >
+                      <span style={S.groupSqName}>{p.name}</span>
+                      {showRecipe && (
+                        <ul style={S.recipeList}>
+                          {p.components!.map((c) => (
+                            <li key={c.id}>{c.quantity}× {c.component_name}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <div style={S.groupSqFoot}>
+                        <span style={S.groupSqPrice}>${p.price.toFixed(2)}</span>
+                        {hasRecipe && (
+                          <button
+                            style={S.recipeBtn}
+                            onClick={(e) => { e.stopPropagation(); setRecipeOpen(showRecipe ? null : p.id); }}
+                          >
+                            {showRecipe ? "Ocultar" : "🧾 Receta"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <button style={S.promoCancel} onClick={() => setOpenGroup(null)}>Cerrar</button>
+            <button style={S.promoCancel} onClick={() => { setOpenGroup(null); setRecipeOpen(null); }}>Cerrar</button>
           </div>
         </div>
       )}
@@ -263,7 +285,16 @@ const S: Record<string, React.CSSProperties> = {
     background: "#f8fafc", cursor: "pointer", textAlign: "left",
   },
   groupSqName: { fontSize: 14, fontWeight: 600, color: "#0f172a", lineHeight: 1.2 },
+  groupSqFoot: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 },
   groupSqPrice: { fontSize: 16, fontWeight: 700, color: "#16a34a" },
+  recipeBtn: {
+    flexShrink: 0, padding: "3px 8px", borderRadius: 8, border: "1px solid #e9d5ff",
+    background: "#faf5ff", color: "#7c3aed", cursor: "pointer", fontSize: 11, fontWeight: 700,
+  },
+  recipeList: {
+    margin: "2px 0", paddingLeft: 16, fontSize: 12, color: "#475569", lineHeight: 1.5,
+    listStyle: "disc",
+  },
   promoBtn: {
     flexShrink: 0,
     padding: "6px 10px",
