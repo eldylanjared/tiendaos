@@ -139,13 +139,21 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
 
   async function handleSave() {
     // price 0 permitido: productos de precio abierto como "Varios"
-    if (!form.barcode || !form.name || form.price < 0) {
+    if (!form.barcode || !form.name || (Number(form.price) || 0) < 0) {
       toast.error("Barcode, nombre y precio son requeridos");
       return;
     }
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = { ...form };
+      // Numeric fields are kept as raw strings while editing so they can be
+      // cleared; coerce them here (empty -> 0, stock/min_stock floored to int).
+      const payload: Record<string, unknown> = {
+        ...form,
+        price: Number(form.price) || 0,
+        cost: Number(form.cost) || 0,
+        stock: Math.floor(Number(form.stock) || 0),
+        min_stock: Math.floor(Number(form.min_stock) || 0),
+      };
       if (!payload.category_id) delete payload.category_id;
       if (!payload.supplier_id) delete payload.supplier_id;
 
@@ -324,11 +332,11 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         </label>
         <label style={styles.label}>
           Precio
-          <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.price} onChange={(e) => setField("price", parseFloat(e.target.value) || 0)} onWheel={(e) => e.currentTarget.blur()} />
+          <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.price} onChange={(e) => setField("price", e.target.value)} onWheel={(e) => e.currentTarget.blur()} />
         </label>
         <label style={styles.label}>
           Costo
-          <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.cost} onChange={(e) => setField("cost", parseFloat(e.target.value) || 0)} onWheel={(e) => e.currentTarget.blur()} />
+          <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.cost} onChange={(e) => setField("cost", e.target.value)} onWheel={(e) => e.currentTarget.blur()} />
         </label>
         <label style={styles.label}>
           Categoria
@@ -405,11 +413,11 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         </label>
         <label style={styles.label}>
           Stock
-          <input style={styles.input} type="number" value={form.stock} onChange={(e) => setField("stock", parseInt(e.target.value) || 0)} />
+          <input style={styles.input} type="number" value={form.stock} onChange={(e) => setField("stock", e.target.value)} />
         </label>
         <label style={styles.label}>
           Stock Min.
-          <input style={styles.input} type="number" value={form.min_stock} onChange={(e) => setField("min_stock", parseInt(e.target.value) || 0)} />
+          <input style={styles.input} type="number" value={form.min_stock} onChange={(e) => setField("min_stock", e.target.value)} />
         </label>
         <label style={styles.checkLabel}>
           <input type="checkbox" checked={form.sell_by_weight} onChange={(e) => setField("sell_by_weight", e.target.checked)} />
