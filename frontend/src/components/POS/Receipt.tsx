@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getStoreInfo, type StoreInfo } from "@/services/api";
+import { getStoreInfo, getPrinterStatus, type StoreInfo } from "@/services/api";
 import type { Sale } from "@/types";
 
 interface Props {
@@ -46,13 +46,23 @@ async function tryBackendPrint(sale: Sale, storeName: string): Promise<boolean> 
 export default function Receipt({ sale, storeName, onClose, closeLabel = "Nueva venta" }: Props) {
   const [printing, setPrinting] = useState(false);
   const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
+  // Whether a backend thermal printer is configured & reachable. Checked once
+  // on open so the print button can act instantly instead of round-tripping.
+  const [hasPrinter, setHasPrinter] = useState(false);
   const date = new Date(sale.created_at);
 
   useEffect(() => {
     getStoreInfo().then(setStoreInfo);
+    getPrinterStatus().then((s) => setHasPrinter(s.configured && s.accessible)).catch(() => {});
   }, []);
 
   async function handlePrint() {
+    // No thermal printer -> open the browser print dialog immediately on this
+    // click (one press, printer options pop out, prints).
+    if (!hasPrinter) {
+      window.print();
+      return;
+    }
     setPrinting(true);
     const printed = await tryBackendPrint(sale, storeName);
     if (!printed) {

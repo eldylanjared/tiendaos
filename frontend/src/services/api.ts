@@ -323,6 +323,22 @@ export async function getStoreInfo(): Promise<StoreInfo> {
   }
 }
 
+export interface PrinterStatus {
+  configured: boolean;
+  port: string | null;
+  accessible: boolean;
+}
+
+/** Whether a backend thermal printer is configured/reachable. Defaults to
+ *  "not configured" on any error so the UI falls back to the browser dialog. */
+export async function getPrinterStatus(): Promise<PrinterStatus> {
+  try {
+    return await request<PrinterStatus>("/receipts/status");
+  } catch {
+    return { configured: false, port: null, accessible: false };
+  }
+}
+
 // Sales
 export async function createSale(
   items: SaleItemCreate[],
