@@ -52,6 +52,11 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   const supplierRef = useRef<HTMLDivElement>(null);
   const supplierInputRef = useRef<HTMLInputElement>(null);
   const [supplierDropdownPos, setSupplierDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const categoryRef = useRef<HTMLDivElement>(null);
+  const categoryInputRef = useRef<HTMLInputElement>(null);
+  const [categoryDropdownPos, setCategoryDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [imagePreview, setImagePreview] = useState<string>(product?.image_url || "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -77,7 +82,13 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getCategories().then(setCategories).catch(() => {});
+    getCategories().then((list) => {
+      setCategories(list);
+      if (product?.category_id) {
+        const found = list.find((c) => c.id === product.category_id);
+        if (found) setCategorySearch(found.name);
+      }
+    }).catch(() => {});
     getSuppliers().then((list) => {
       setSuppliers(list);
       if (product?.supplier_id) {
@@ -123,6 +134,43 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
       setSupplierDropdownPos({ top: r.bottom + 2, left: r.left, width: r.width });
     }
     setSupplierOpen(true);
+  }
+
+  // Close category dropdown on outside click (mirrors supplier)
+  useEffect(() => {
+    if (!categoryOpen) return;
+    function onDown(e: MouseEvent) {
+      if (categoryRef.current && !categoryRef.current.contains(e.target as Node)) {
+        setCategoryOpen(false);
+        setCategoryDropdownPos(null);
+        if (!form.category_id) setCategorySearch("");
+        else {
+          const found = categories.find((c) => c.id === form.category_id);
+          setCategorySearch(found?.name ?? "");
+        }
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [categoryOpen, form.category_id, categories]);
+
+  const filteredCategories = categories.filter((c) =>
+    c.name.toLowerCase().includes(categorySearch.toLowerCase())
+  );
+
+  const selectCategory = useCallback((id: string, name: string) => {
+    setField("category_id", id);
+    setCategorySearch(name);
+    setCategoryOpen(false);
+    setCategoryDropdownPos(null);
+  }, []);
+
+  function openCategoryDropdown() {
+    if (categoryInputRef.current) {
+      const r = categoryInputRef.current.getBoundingClientRect();
+      setCategoryDropdownPos({ top: r.bottom + 2, left: r.left, width: r.width });
+    }
+    setCategoryOpen(true);
   }
 
   function setField(field: string, value: unknown) {
@@ -347,16 +395,55 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         </label>
         <label style={styles.label}>
           Categoria
-          <select
-            style={styles.input}
-            value={form.category_id}
-            onChange={(e) => setField("category_id", e.target.value)}
-          >
-            <option value="">Sin categoria</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div ref={categoryRef} style={{ position: "relative" }}>
+            <input
+              ref={categoryInputRef}
+              style={{ ...styles.input, width: "100%", boxSizing: "border-box" as const }}
+              value={categorySearch}
+              placeholder="Buscar categoria..."
+              onChange={(e) => {
+                setCategorySearch(e.target.value);
+                openCategoryDropdown();
+                if (!e.target.value) setField("category_id", "");
+              }}
+              onFocus={openCategoryDropdown}
+            />
+            {form.category_id && (
+              <button
+                style={styles.supplierClear}
+                onClick={() => { setField("category_id", ""); setCategorySearch(""); }}
+                tabIndex={-1}
+              >✕</button>
+            )}
+            {categoryOpen && categoryDropdownPos && (
+              <div style={{
+                ...styles.supplierDropdown,
+                position: "fixed",
+                top: categoryDropdownPos.top,
+                left: categoryDropdownPos.left,
+                width: categoryDropdownPos.width,
+              }}>
+                <div
+                  style={styles.supplierOption}
+                  onMouseDown={() => selectCategory("", "")}
+                >
+                  <span style={{ color: "#94a3b8" }}>Sin categoria</span>
+                </div>
+                {filteredCategories.length === 0 && (
+                  <div style={{ ...styles.supplierOption, color: "#94a3b8" }}>Sin resultados</div>
+                )}
+                {filteredCategories.map((c) => (
+                  <div
+                    key={c.id}
+                    style={styles.supplierOption}
+                    onMouseDown={() => selectCategory(c.id, c.name)}
+                  >
+                    {c.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </label>
         <label style={styles.label}>
           Proveedor
