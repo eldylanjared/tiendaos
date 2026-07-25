@@ -154,9 +154,9 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
     return () => document.removeEventListener("mousedown", onDown);
   }, [categoryOpen, form.category_id, categories]);
 
-  const filteredCategories = categories.filter((c) =>
-    c.name.toLowerCase().includes(categorySearch.toLowerCase())
-  );
+  const filteredCategories = categories
+    .filter((c) => c.name.toLowerCase().includes(categorySearch.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const selectCategory = useCallback((id: string, name: string) => {
     setField("category_id", id);
@@ -382,10 +382,6 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
           <input style={styles.input} value={form.name} onChange={(e) => setField("name", e.target.value)} />
         </label>
         <label style={styles.label}>
-          Marca (para botón Cervezas)
-          <input style={styles.input} value={form.brand} onChange={(e) => setField("brand", e.target.value)} placeholder="Ej: Corona, Tecate (vacío = no es cerveza)" />
-        </label>
-        <label style={styles.label}>
           Precio
           <input style={{ ...styles.input, ...styles.noSpin }} type="number" step="0.01" value={form.price} onChange={(e) => setField("price", e.target.value)} onWheel={(e) => e.currentTarget.blur()} />
         </label>
@@ -444,6 +440,10 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
               </div>
             )}
           </div>
+        </label>
+        <label style={styles.label}>
+          Marca (para botón Cervezas)
+          <input style={styles.input} value={form.brand} onChange={(e) => setField("brand", e.target.value)} placeholder="Ej: Corona, Tecate (vacío = no es cerveza)" />
         </label>
         <label style={styles.label}>
           Proveedor
