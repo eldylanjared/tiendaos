@@ -22,6 +22,8 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
   const [recipeOpen, setRecipeOpen] = useState<string | null>(null);
   const [openBeer, setOpenBeer] = useState(false);
   const [beerBrand, setBeerBrand] = useState<string | null>(null);
+  // Search box shown inside the open picker (group / brand list / brand variants).
+  const [pickerSearch, setPickerSearch] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const products = externalProducts ?? internalProducts;
@@ -60,6 +62,20 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
         : [],
     [beerBrand, products]
   );
+
+  // Clear the picker search whenever you open a picker or move between levels.
+  useEffect(() => { setPickerSearch(""); }, [openGroup, openBeer, beerBrand]);
+
+  const pq = pickerSearch.trim().toLowerCase();
+  const filteredGroupProducts = pq
+    ? groupProducts.filter((p) => p.name.toLowerCase().includes(pq))
+    : groupProducts;
+  const filteredBeerBrands = pq
+    ? beerBrands.filter((b) => b.name.toLowerCase().includes(pq))
+    : beerBrands;
+  const filteredBeerVariants = pq
+    ? beerBrandProducts.filter((p) => p.name.toLowerCase().includes(pq))
+    : beerBrandProducts;
 
   useEffect(() => {
     getCategories().then(setCategories).catch(() => {});
@@ -256,8 +272,19 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
             {groupProducts.length === 0 ? (
               <p style={S.msg}>No hay productos en esta categoría.</p>
             ) : (
+              <>
+              <input
+                style={S.pickerSearch}
+                placeholder="Buscar en esta categoría..."
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                autoFocus
+              />
+              {filteredGroupProducts.length === 0 ? (
+                <p style={S.msg}>Sin resultados</p>
+              ) : (
               <div style={S.groupGrid}>
-                {groupProducts.map((p) => {
+                {filteredGroupProducts.map((p) => {
                   const hasRecipe = (p.components?.length ?? 0) > 0;
                   const showRecipe = recipeOpen === p.id;
                   return (
@@ -289,6 +316,8 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
                   );
                 })}
               </div>
+              )}
+              </>
             )}
             <button style={S.promoCancel} onClick={() => { setOpenGroup(null); setRecipeOpen(null); }}>Cerrar</button>
           </div>
@@ -302,8 +331,18 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
             {!beerBrand ? (
               <>
                 <h3 style={S.promoTitle}>🍺 Cervezas — elige marca</h3>
+                <input
+                  style={S.pickerSearch}
+                  placeholder="Buscar marca..."
+                  value={pickerSearch}
+                  onChange={(e) => setPickerSearch(e.target.value)}
+                  autoFocus
+                />
+                {filteredBeerBrands.length === 0 ? (
+                  <p style={S.msg}>Sin resultados</p>
+                ) : (
                 <div style={S.groupGrid}>
-                  {beerBrands.map((b) => (
+                  {filteredBeerBrands.map((b) => (
                     <div key={b.name} style={S.groupSquare} onClick={() => setBeerBrand(b.name)}>
                       <span style={S.groupSqName}>{b.name}</span>
                       <div style={S.groupSqFoot}>
@@ -313,6 +352,7 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
                     </div>
                   ))}
                 </div>
+                )}
                 <button style={S.promoCancel} onClick={() => setOpenBeer(false)}>Cerrar</button>
               </>
             ) : (
@@ -321,8 +361,19 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
                 {beerBrandProducts.length === 0 ? (
                   <p style={S.msg}>No hay productos de esta marca.</p>
                 ) : (
+                  <>
+                  <input
+                    style={S.pickerSearch}
+                    placeholder={`Buscar en ${beerBrand}...`}
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    autoFocus
+                  />
+                  {filteredBeerVariants.length === 0 ? (
+                    <p style={S.msg}>Sin resultados</p>
+                  ) : (
                   <div style={S.groupGrid}>
-                    {beerBrandProducts.map((p) => {
+                    {filteredBeerVariants.map((p) => {
                       const hasPromo = !!onSelectQty && (p.volume_promos?.length ?? 0) > 0;
                       return (
                         <div
@@ -346,6 +397,8 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
                       );
                     })}
                   </div>
+                  )}
+                  </>
                 )}
                 <button style={S.promoCancel} onClick={() => setBeerBrand(null)}>{"← Marcas"}</button>
               </>
@@ -384,6 +437,11 @@ const S: Record<string, React.CSSProperties> = {
   groupGrid: {
     display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
     gap: 10, margin: "12px 0",
+  },
+  pickerSearch: {
+    width: "100%", boxSizing: "border-box", margin: "10px 0 4px",
+    padding: "10px 12px", borderRadius: 10, border: "1px solid #e2e8f0",
+    fontSize: 14, outline: "none",
   },
   groupSquare: {
     display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8,
