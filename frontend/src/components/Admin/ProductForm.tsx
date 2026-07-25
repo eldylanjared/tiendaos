@@ -34,6 +34,7 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
   const [form, setForm] = useState({
     barcode: product?.barcode ?? "",
     name: product?.name ?? "",
+    brand: product?.brand ?? "",
     description: product?.description ?? "",
     category_id: product?.category_id ?? "",
     supplier_id: product?.supplier_id ?? "",
@@ -156,6 +157,8 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
       };
       if (!payload.category_id) delete payload.category_id;
       if (!payload.supplier_id) delete payload.supplier_id;
+      // Normalize brand: trimmed value, or null to clear it on edit.
+      payload.brand = String(form.brand ?? "").trim() || null;
 
       let result: Product;
       if (isEdit) {
@@ -329,6 +332,10 @@ export default function ProductForm({ product, onSave, onCancel }: Props) {
         <label style={styles.label}>
           Nombre
           <input style={styles.input} value={form.name} onChange={(e) => setField("name", e.target.value)} />
+        </label>
+        <label style={styles.label}>
+          Marca (para botón Cervezas)
+          <input style={styles.input} value={form.brand} onChange={(e) => setField("brand", e.target.value)} placeholder="Ej: Corona, Tecate (vacío = no es cerveza)" />
         </label>
         <label style={styles.label}>
           Precio

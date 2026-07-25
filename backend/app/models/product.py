@@ -29,6 +29,9 @@ class Product(Base):
     barcode: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     description: Mapped[str] = mapped_column(String(500), default="")
+    # Brand (e.g. "Corona", "Tecate"). Drives the POS "Cervezas" tile: products with
+    # a brand set are grouped by brand. Non-beer products leave this empty.
+    brand: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     category_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("categories.id"), nullable=True)
     price: Mapped[float] = mapped_column(Float, nullable=False)
     cost: Mapped[float] = mapped_column(Float, default=0.0)

@@ -105,6 +105,7 @@ class ProductBase(BaseModel):
     barcode: str
     name: str
     description: str = ""
+    brand: str | None = None
     category_id: str | None = None
     supplier_id: str | None = None
     price: float
@@ -123,6 +124,7 @@ class ProductUpdate(BaseModel):
     barcode: str | None = None
     name: str | None = None
     description: str | None = None
+    brand: str | None = None
     category_id: str | None = None
     supplier_id: str | None = None
     price: float | None = None

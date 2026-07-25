@@ -53,6 +53,7 @@ export interface Product {
   barcode: string;
   name: string;
   description: string;
+  brand: string | null;
   category_id: string | null;
   supplier_id: string | null;
   price: number;

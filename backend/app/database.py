@@ -50,6 +50,7 @@ def _run_migrations():
         ("sales", "synced_at", "DATETIME"),
         ("stores", "sync_api_key", "VARCHAR(64)"),
         ("categories", "favorite_group", "BOOLEAN DEFAULT 0"),
+        ("products", "brand", "VARCHAR(100)"),
     ]
     with engine.connect() as conn:
         for table, column, col_def in migrations:

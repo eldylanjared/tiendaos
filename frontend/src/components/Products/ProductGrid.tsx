@@ -20,6 +20,8 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
   const [promoProduct, setPromoProduct] = useState<Product | null>(null);
   const [openGroup, setOpenGroup] = useState<Category | null>(null);
   const [recipeOpen, setRecipeOpen] = useState<string | null>(null);
+  const [openBeer, setOpenBeer] = useState(false);
+  const [beerBrand, setBeerBrand] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const products = externalProducts ?? internalProducts;
@@ -33,6 +35,30 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
   const groupProducts = useMemo(
     () => (openGroup ? products.filter((p) => p.category_id === openGroup.id && p.is_active !== false) : []),
     [openGroup, products]
+  );
+
+  // Beer-by-brand: any active product with a `brand` set feeds the "Cervezas" tile.
+  // Brand IS the membership — no category needed. Distinct brands, alphabetical.
+  const beerBrands = useMemo(() => {
+    if (!favoritesOnly) return [] as { name: string; count: number }[];
+    const counts = new Map<string, number>();
+    for (const p of products) {
+      const b = (p.brand ?? "").trim();
+      if (b && p.is_active !== false) counts.set(b, (counts.get(b) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, favoritesOnly]);
+
+  const beerBrandProducts = useMemo(
+    () =>
+      beerBrand
+        ? products
+            .filter((p) => (p.brand ?? "").trim() === beerBrand && p.is_active !== false)
+            .sort((a, b) => a.name.localeCompare(b.name))
+        : [],
+    [beerBrand, products]
   );
 
   useEffect(() => {
@@ -121,6 +147,18 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
             <span style={S.groupChevron}>{"▸"}</span>
           </div>
         ))}
+
+        {/* Beer tile — grouped by brand (Corona, Tecate, ...) */}
+        {!search && beerBrands.length > 0 && (
+          <div style={{ ...S.row, ...S.beerRow }} onClick={() => { setOpenBeer(true); setBeerBrand(null); }}>
+            <span style={S.beerEmoji}>🍺</span>
+            <div style={S.nameCol}>
+              <span style={S.name}>Cervezas</span>
+              <span style={S.beerHint}>Por marca · {beerBrands.length} marca{beerBrands.length !== 1 ? "s" : ""}</span>
+            </div>
+            <span style={S.beerChevron}>{"▸"}</span>
+          </div>
+        )}
 
         {displayProducts.map((p) => {
           const cat = categories.find((c) => c.id === p.category_id);
@@ -256,6 +294,65 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
           </div>
         </div>
       )}
+
+      {/* Beer picker: brands -> variants of the chosen brand */}
+      {openBeer && (
+        <div style={S.promoOverlay} onClick={() => { setOpenBeer(false); setBeerBrand(null); }}>
+          <div style={S.groupPanel} onClick={(e) => e.stopPropagation()}>
+            {!beerBrand ? (
+              <>
+                <h3 style={S.promoTitle}>🍺 Cervezas — elige marca</h3>
+                <div style={S.groupGrid}>
+                  {beerBrands.map((b) => (
+                    <div key={b.name} style={S.groupSquare} onClick={() => setBeerBrand(b.name)}>
+                      <span style={S.groupSqName}>{b.name}</span>
+                      <div style={S.groupSqFoot}>
+                        <span style={S.beerCount}>{b.count} producto{b.count !== 1 ? "s" : ""}</span>
+                        <span style={S.beerChevron}>{"▸"}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button style={S.promoCancel} onClick={() => setOpenBeer(false)}>Cerrar</button>
+              </>
+            ) : (
+              <>
+                <h3 style={S.promoTitle}>{beerBrand}</h3>
+                {beerBrandProducts.length === 0 ? (
+                  <p style={S.msg}>No hay productos de esta marca.</p>
+                ) : (
+                  <div style={S.groupGrid}>
+                    {beerBrandProducts.map((p) => {
+                      const hasPromo = !!onSelectQty && (p.volume_promos?.length ?? 0) > 0;
+                      return (
+                        <div
+                          key={p.id}
+                          style={S.groupSquare}
+                          onClick={() => {
+                            // Beers with volume promos open the qty picker (6/12/24);
+                            // others add a single unit directly.
+                            if (hasPromo) setPromoProduct(p);
+                            else onSelect(p);
+                            setOpenBeer(false);
+                            setBeerBrand(null);
+                          }}
+                        >
+                          <span style={S.groupSqName}>{p.name}</span>
+                          <div style={S.groupSqFoot}>
+                            <span style={S.groupSqPrice}>${p.price.toFixed(2)}</span>
+                            {hasPromo && <span style={S.beerPromoTag}>6+</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <button style={S.promoCancel} onClick={() => setBeerBrand(null)}>{"← Marcas"}</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -271,6 +368,15 @@ const S: Record<string, React.CSSProperties> = {
   },
   groupHint: { fontSize: 11, color: "#a855f7", fontWeight: 600 },
   groupChevron: { color: "#a855f7", fontSize: 18, fontWeight: 700, flexShrink: 0 },
+  beerRow: { background: "#fffbeb", border: "1px solid #fde68a", cursor: "pointer" },
+  beerEmoji: { fontSize: 18, flexShrink: 0, width: 20, textAlign: "center" },
+  beerHint: { fontSize: 11, color: "#d97706", fontWeight: 600 },
+  beerChevron: { color: "#d97706", fontSize: 18, fontWeight: 700, flexShrink: 0 },
+  beerCount: { fontSize: 11, color: "#d97706", fontWeight: 600 },
+  beerPromoTag: {
+    flexShrink: 0, padding: "2px 7px", borderRadius: 8, border: "1px solid #2563eb",
+    background: "#eff6ff", color: "#2563eb", fontSize: 11, fontWeight: 700,
+  },
   groupPanel: {
     background: "#fff", borderRadius: 16, padding: 20, width: "min(560px, 92vw)",
     maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
