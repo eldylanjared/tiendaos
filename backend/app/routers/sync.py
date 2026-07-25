@@ -113,6 +113,7 @@ def sync_pull_products(
                 "barcode": p.barcode,
                 "name": p.name,
                 "description": p.description,
+                "brand": p.brand,
                 "category_id": p.category_id,
                 "supplier_id": p.supplier_id,
                 "price": p.price,

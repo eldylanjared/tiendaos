@@ -43,25 +43,27 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
   // Brand IS the membership — no category needed. Distinct brands, alphabetical.
   const beerBrands = useMemo(() => {
     if (!favoritesOnly) return [] as { name: string; count: number }[];
-    const counts = new Map<string, number>();
+    // Group case-insensitively so "Corona" and "corona" collapse into one tile;
+    // keep the first-seen spelling as the display name.
+    const map = new Map<string, { name: string; count: number }>();
     for (const p of products) {
-      const b = (p.brand ?? "").trim();
-      if (b && p.is_active !== false) counts.set(b, (counts.get(b) ?? 0) + 1);
+      const raw = (p.brand ?? "").trim();
+      if (!raw || p.is_active === false) continue;
+      const key = raw.toLowerCase();
+      const entry = map.get(key);
+      if (entry) entry.count += 1;
+      else map.set(key, { name: raw, count: 1 });
     }
-    return [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [products, favoritesOnly]);
 
-  const beerBrandProducts = useMemo(
-    () =>
-      beerBrand
-        ? products
-            .filter((p) => (p.brand ?? "").trim() === beerBrand && p.is_active !== false)
-            .sort((a, b) => a.name.localeCompare(b.name))
-        : [],
-    [beerBrand, products]
-  );
+  const beerBrandProducts = useMemo(() => {
+    if (!beerBrand) return [];
+    const key = beerBrand.toLowerCase();
+    return products
+      .filter((p) => (p.brand ?? "").trim().toLowerCase() === key && p.is_active !== false)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [beerBrand, products]);
 
   // Clear the picker search whenever you open a picker or move between levels.
   useEffect(() => { setPickerSearch(""); }, [openGroup, openBeer, beerBrand]);
@@ -146,7 +148,7 @@ export default function ProductGrid({ onSelect, onSelectQty, favoritesOnly, prod
         {loading && displayProducts.length === 0 && (
           <p style={S.msg}>Cargando...</p>
         )}
-        {!loading && displayProducts.length === 0 && groupCategories.length === 0 && (
+        {!loading && displayProducts.length === 0 && groupCategories.length === 0 && beerBrands.length === 0 && (
           <p style={S.msg}>
             {favoritesOnly ? "No hay favoritos — usa la estrella en 'Todos' para agregar" : "No se encontraron productos"}
           </p>
